@@ -22,7 +22,7 @@ class CityRepositoryImpl(
         if (query.isBlank()) return emptyList()
         return nominatim.search(query)
             .filter { it.address.countryCode != null }   // must at least have a country
-            .distinctBy { "%.2f,%.2f".format(it.lat.toDouble(), it.lon.toDouble()) }
+            .distinctBy { "%.4f,%.4f".format(it.lat.toDouble(), it.lon.toDouble()) }
             .map { it.toDomain() }
     }
 

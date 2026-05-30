@@ -67,7 +67,6 @@ class CityViewModel(
             _uiState.value = _uiState.value.copy(isSearching = true)
             try {
                 val results = searchCities(query)
-                    .distinctBy { "%.4f,%.4f".format(it.lat, it.lon) }
                 _uiState.value = _uiState.value.copy(searchResults = results, isSearching = false)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isSearching = false, errorMessage = "搜尋失敗，請稍後再試")

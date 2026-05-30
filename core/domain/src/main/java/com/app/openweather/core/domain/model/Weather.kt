@@ -34,6 +34,11 @@ data class DailyForecast(
     val pop: Double,
 )
 
+data class Forecast(
+    val hourly: List<HourlyForecast>,
+    val daily: List<DailyForecast>,
+)
+
 data class City(
     val name: String,
     val country: String,

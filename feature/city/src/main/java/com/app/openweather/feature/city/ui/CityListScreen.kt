@@ -23,8 +23,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
+import com.app.openweather.core.ui.AppColors
+import com.app.openweather.feature.city.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -36,14 +38,6 @@ import com.app.openweather.core.domain.usecase.MAX_FAVORITES
 import com.app.openweather.feature.city.viewmodel.CityViewModel
 import org.koin.androidx.compose.koinViewModel
 
-private val BgDark = Color(0xFF1B2033)
-private val BgCard = Color(0xFF252B3E)
-private val BgHighlight = Color(0xFF2E3650)
-private val AccentBlue = Color(0xFF5B9CF6)
-private val StarColor = Color(0xFFF5C842)
-private val TextPrimary = Color.White
-private val TextSecondary = Color(0xFFABB3C9)
-private val Danger = Color(0xFFFF6B6B)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,17 +59,17 @@ fun CityListScreen(
     }
 
     Scaffold(
-        containerColor = BgDark,
+        containerColor = AppColors.BgDark,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            Column(modifier = Modifier.background(BgDark)) {
+            Column(modifier = Modifier.background(AppColors.BgDark)) {
                 // Back + title
                 TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = BgDark),
-                    title = { Text("地點管理", color = TextPrimary, fontWeight = FontWeight.SemiBold) },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = AppColors.BgDark),
+                    title = { Text(stringResource(R.string.title_location_management), color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold) },
                     navigationIcon = {
                         IconButton(onClick = onBackClick) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = TextPrimary)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = AppColors.TextPrimary)
                         }
                     }
                 )
@@ -88,12 +82,12 @@ fun CityListScreen(
                         .padding(horizontal = 16.dp)
                         .padding(bottom = 8.dp)
                         .focusRequester(focusRequester),
-                    placeholder = { Text("搜尋城市名稱...", color = TextSecondary, fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.Search, null, tint = TextSecondary) },
+                    placeholder = { Text(stringResource(R.string.hint_search_city), color = AppColors.TextSecondary, fontSize = 14.sp) },
+                    leadingIcon = { Icon(Icons.Default.Search, null, tint = AppColors.TextSecondary) },
                     trailingIcon = {
                         if (uiState.query.isNotEmpty()) {
                             IconButton(onClick = { viewModel.onQueryChange("") }) {
-                                Icon(Icons.Default.Clear, null, tint = TextSecondary)
+                                Icon(Icons.Default.Clear, null, tint = AppColors.TextSecondary)
                             }
                         }
                     },
@@ -101,17 +95,17 @@ fun CityListScreen(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AccentBlue,
-                        unfocusedBorderColor = BgCard,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        cursorColor = AccentBlue,
-                        focusedContainerColor = BgCard,
-                        unfocusedContainerColor = BgCard,
+                        focusedBorderColor = AppColors.AccentBlue,
+                        unfocusedBorderColor = AppColors.BgCard,
+                        focusedTextColor = AppColors.TextPrimary,
+                        unfocusedTextColor = AppColors.TextPrimary,
+                        cursorColor = AppColors.AccentBlue,
+                        focusedContainerColor = AppColors.BgCard,
+                        unfocusedContainerColor = AppColors.BgCard,
                     ),
                     shape = RoundedCornerShape(12.dp),
                 )
-                HorizontalDivider(color = BgCard)
+                HorizontalDivider(color = AppColors.BgCard)
             }
         }
     ) { padding ->
@@ -129,18 +123,18 @@ fun CityListScreen(
                 when {
                     uiState.isSearching -> item {
                         Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = AccentBlue, modifier = Modifier.size(28.dp))
+                            CircularProgressIndicator(color = AppColors.AccentBlue, modifier = Modifier.size(28.dp))
                         }
                     }
                     uiState.searchResults.isEmpty() -> item {
                         Text(
-                            "找不到「${uiState.query}」相關城市",
-                            color = TextSecondary,
+                            stringResource(R.string.msg_no_city_found, uiState.query),
+                            color = AppColors.TextSecondary,
                             modifier = Modifier.padding(24.dp),
                         )
                     }
                     else -> {
-                        item { SectionLabel("搜尋結果") }
+                        item { SectionLabel(stringResource(R.string.label_search_results)) }
                         itemsIndexed(uiState.searchResults, key = { idx, _ -> "search-$idx" }) { _, city ->
                             val alreadySaved = uiState.savedCities.any { it.id == city.id }
                             SearchResultRow(
@@ -153,7 +147,7 @@ fun CityListScreen(
                                     onCitySelected(city.toCity())
                                 },
                             )
-                            HorizontalDivider(color = BgCard, thickness = 0.5.dp)
+                            HorizontalDivider(color = AppColors.BgCard, thickness = 0.5.dp)
                         }
                     }
                 }
@@ -163,7 +157,7 @@ fun CityListScreen(
                 val others    = uiState.savedCities.filter { !it.isFavorite }
 
                 if (favorites.isNotEmpty()) {
-                    item { SectionLabel("⭐ 最愛（${favorites.size} / $MAX_FAVORITES）") }
+                    item { SectionLabel(stringResource(R.string.label_favorites_count, favorites.size, MAX_FAVORITES)) }
                     items(favorites, key = { "fav-${it.id}" }) { city ->
                         SavedCityRow(
                             city = city,
@@ -171,12 +165,12 @@ fun CityListScreen(
                             onToggleStar = { viewModel.onToggleFavorite(city.id) },
                             onDelete = { viewModel.onDeleteCity(city.id) },
                         )
-                        HorizontalDivider(color = BgCard, thickness = 0.5.dp)
+                        HorizontalDivider(color = AppColors.BgCard, thickness = 0.5.dp)
                     }
                 }
 
                 if (others.isNotEmpty()) {
-                    item { SectionLabel("已儲存的地點") }
+                    item { SectionLabel(stringResource(R.string.label_saved_locations)) }
                     items(others, key = { "saved-${it.id}" }) { city ->
                         SavedCityRow(
                             city = city,
@@ -184,7 +178,7 @@ fun CityListScreen(
                             onToggleStar = { viewModel.onToggleFavorite(city.id) },
                             onDelete = { viewModel.onDeleteCity(city.id) },
                         )
-                        HorizontalDivider(color = BgCard, thickness = 0.5.dp)
+                        HorizontalDivider(color = AppColors.BgCard, thickness = 0.5.dp)
                     }
                 }
 
@@ -194,11 +188,11 @@ fun CityListScreen(
                             modifier = Modifier.fillMaxWidth().padding(48.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Text("尚無儲存地點", color = TextSecondary, fontSize = 15.sp)
+                            Text(stringResource(R.string.msg_no_saved_locations), color = AppColors.TextSecondary, fontSize = 15.sp)
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                "在上方搜尋城市，點「+」加入列表\n加上 ⭐ 可在首頁快速切換（最多 $MAX_FAVORITES 個）",
-                                color = TextSecondary,
+                                stringResource(R.string.msg_no_saved_hint, MAX_FAVORITES),
+                                color = AppColors.TextSecondary,
                                 fontSize = 13.sp,
                                 lineHeight = 20.sp,
                             )
@@ -214,11 +208,11 @@ fun CityListScreen(
 private fun SectionLabel(text: String) {
     Text(
         text = text,
-        color = TextSecondary,
+        color = AppColors.TextSecondary,
         fontSize = 12.sp,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier
-            .background(BgDark)
+            .background(AppColors.BgDark)
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 10.dp),
     )
@@ -234,24 +228,24 @@ private fun SearchResultRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(BgDark)
+            .background(AppColors.BgDark)
             .clickable(onClick = onSelect)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(city.name, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(city.name, color = AppColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
             Text(
                 listOfNotNull(city.state, city.country).joinToString(", "),
-                color = TextSecondary,
+                color = AppColors.TextSecondary,
                 fontSize = 12.sp,
             )
         }
         if (alreadySaved) {
-            Text("已儲存", color = TextSecondary, fontSize = 12.sp)
+            Text(stringResource(R.string.label_already_saved), color = AppColors.TextSecondary, fontSize = 12.sp)
         } else {
             IconButton(onClick = onAdd) {
-                Icon(Icons.Default.Add, contentDescription = "儲存", tint = AccentBlue)
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cd_save), tint = AppColors.AccentBlue)
             }
         }
     }
@@ -267,16 +261,16 @@ private fun SavedCityRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (city.isFavorite) BgHighlight else BgDark)
+            .background(if (city.isFavorite) AppColors.BgHighlight else AppColors.BgDark)
             .clickable(onClick = onSelect)
             .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(city.name, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(city.name, color = AppColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
             Text(
                 listOfNotNull(city.state, city.country).joinToString(", "),
-                color = TextSecondary,
+                color = AppColors.TextSecondary,
                 fontSize = 12.sp,
             )
         }
@@ -284,13 +278,13 @@ private fun SavedCityRow(
         IconButton(onClick = onToggleStar) {
             Icon(
                 imageVector = if (city.isFavorite) Icons.Filled.Star else Icons.Outlined.StarOutline,
-                contentDescription = if (city.isFavorite) "取消最愛" else "加入最愛",
-                tint = if (city.isFavorite) StarColor else TextSecondary,
+                contentDescription = stringResource(if (city.isFavorite) R.string.cd_remove_favorite else R.string.cd_add_favorite),
+                tint = if (city.isFavorite) AppColors.StarColor else AppColors.TextSecondary,
             )
         }
         // Delete
         IconButton(onClick = onDelete) {
-            Icon(Icons.Default.Delete, contentDescription = "刪除", tint = TextSecondary)
+            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.cd_delete), tint = AppColors.TextSecondary)
         }
     }
 }

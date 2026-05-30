@@ -4,6 +4,7 @@ import android.app.Application
 import com.app.openweather.core.data.di.dataModule
 import com.app.openweather.core.domain.di.domainModule
 import com.app.openweather.core.network.di.networkModule
+import com.app.openweather.di.appModule
 import com.app.openweather.feature.city.di.cityModule
 import com.app.openweather.feature.weather.di.weatherModule
 import org.koin.android.ext.koin.androidContext
@@ -19,6 +20,7 @@ class WeatherApplication : Application() {
                 networkModule,
                 dataModule,
                 domainModule,
+                appModule,
                 weatherModule,
                 cityModule,
             )

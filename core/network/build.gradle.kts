@@ -17,6 +17,7 @@ android {
         minSdk = 24
         buildConfigField("String", "BASE_URL", "\"https://api.openweathermap.org/\"")
         buildConfigField("String", "API_KEY", "\"${localProperties["WEATHER_API_KEY"]}\"")
+        buildConfigField("String", "APPLICATION_ID", "\"com.app.openweather\"")
     }
     buildFeatures { buildConfig = true }
     compileOptions {

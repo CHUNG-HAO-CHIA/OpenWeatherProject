@@ -12,7 +12,6 @@ interface WeatherApi {
         @Query("lat") lat: Double,
         @Query("lon") lon: Double,
         @Query("units") units: String = "metric",
-        @Query("appid") apiKey: String,
     ): CurrentWeatherDto
 
     @GET("data/2.5/forecast")
@@ -20,6 +19,5 @@ interface WeatherApi {
         @Query("lat") lat: Double,
         @Query("lon") lon: Double,
         @Query("units") units: String = "metric",
-        @Query("appid") apiKey: String,
     ): ForecastResponseDto
 }

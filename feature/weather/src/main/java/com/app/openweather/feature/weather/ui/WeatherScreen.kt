@@ -29,23 +29,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.app.openweather.core.ui.AppColors
+import com.app.openweather.feature.weather.R
 import com.app.openweather.core.domain.model.CurrentWeather
 import com.app.openweather.core.domain.model.DailyForecast
 import com.app.openweather.core.domain.model.HourlyForecast
 import com.app.openweather.core.domain.model.SavedCity
 import com.app.openweather.feature.weather.viewmodel.WeatherViewModel
 import org.koin.androidx.compose.koinViewModel
+import androidx.compose.ui.res.stringResource
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.roundToInt
 
-private val BgDark = Color(0xFF1B2033)
-private val BgCard = Color(0xFF252B3E)
-private val AccentBlue = Color(0xFF5B9CF6)
-private val TextPrimary = Color.White
-private val TextSecondary = Color(0xFFABB3C9)
-private val ChartLine = Color(0xFFF5C842)
-private val StarColor = Color(0xFFF5C842)
 
 @Composable
 fun WeatherScreen(
@@ -65,7 +61,7 @@ fun WeatherScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgDark)
+            .background(AppColors.BgDark)
             .statusBarsPadding(),
     ) {
         // Scrollable weather content — takes all remaining space
@@ -74,13 +70,13 @@ fun WeatherScreen(
                 uiState.isLoading && uiState.currentWeather == null -> {
                     CircularProgressIndicator(
                         modifier = Modifier.align(Alignment.Center),
-                        color = AccentBlue,
+                        color = AppColors.AccentBlue,
                     )
                 }
                 uiState.error != null && uiState.currentWeather == null -> {
                     Text(
                         text = uiState.error ?: "Unknown error",
-                        color = TextSecondary,
+                        color = AppColors.TextSecondary,
                         modifier = Modifier.align(Alignment.Center).padding(24.dp),
                         textAlign = TextAlign.Center,
                     )
@@ -130,8 +126,8 @@ private fun WeatherContent(
             item {
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    text = "5 天預報",
-                    color = TextSecondary,
+                    text = stringResource(R.string.label_five_day_forecast),
+                    color = AppColors.TextSecondary,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
@@ -166,14 +162,14 @@ private fun CurrentWeatherHero(weather: CurrentWeather) {
             Column {
                 Text(
                     text = "${weather.temperature.roundToInt()}°C",
-                    color = TextPrimary,
+                    color = AppColors.TextPrimary,
                     fontSize = 56.sp,
                     fontWeight = FontWeight.Light,
                     lineHeight = 56.sp,
                 )
                 Text(
                     text = weather.description.replaceFirstChar { it.uppercase() },
-                    color = TextSecondary,
+                    color = AppColors.TextSecondary,
                     fontSize = 15.sp,
                 )
             }
@@ -186,9 +182,9 @@ private fun CurrentWeatherHero(weather: CurrentWeather) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            StatChip(label = "體感", value = "${weather.feelsLike.roundToInt()}°")
-            StatChip(label = "濕度", value = "${weather.humidity}%")
-            StatChip(label = "風速", value = "${(weather.windSpeed * 3.6).roundToInt()} km/h")
+            StatChip(label = stringResource(R.string.stat_feels_like), value = "${weather.feelsLike.roundToInt()}°")
+            StatChip(label = stringResource(R.string.stat_humidity), value = "${weather.humidity}%")
+            StatChip(label = stringResource(R.string.stat_wind_speed), value = "${(weather.windSpeed * 3.6).roundToInt()} km/h")
         }
     }
 }
@@ -196,8 +192,8 @@ private fun CurrentWeatherHero(weather: CurrentWeather) {
 @Composable
 private fun StatChip(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = value, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-        Text(text = label, color = TextSecondary, fontSize = 12.sp)
+        Text(text = value, color = AppColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+        Text(text = label, color = AppColors.TextSecondary, fontSize = 12.sp)
     }
 }
 
@@ -243,13 +239,13 @@ private fun HourlySection(hourly: List<HourlyForecast>) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = "每3小時預報", color = TextSecondary, fontSize = 13.sp)
+        Text(text = stringResource(R.string.label_hourly_forecast), color = AppColors.TextSecondary, fontSize = 13.sp)
     }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(BgCard)
+            .background(AppColors.BgCard)
             .horizontalScroll(scrollState),
     ) {
         val totalWidth = itemWidthDp * hourly.size
@@ -267,7 +263,7 @@ private fun HourlySection(hourly: List<HourlyForecast>) {
                 ) {
                     Text(
                         text = "${item.temp.roundToInt()}°",
-                        color = TextPrimary,
+                        color = AppColors.TextPrimary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                     )
@@ -304,9 +300,9 @@ private fun HourlySection(hourly: List<HourlyForecast>) {
                 val cx = (x0 + x1) / 2f
                 path.cubicTo(cx, y0, cx, y1, x1, y1)
             }
-            drawPath(path, color = ChartLine, style = Stroke(width = 3f, cap = StrokeCap.Round))
+            drawPath(path, color = AppColors.ChartLine, style = Stroke(width = 3f, cap = StrokeCap.Round))
             for (i in temps.indices) {
-                drawCircle(color = ChartLine, radius = 4f, center = Offset(xOf(i), yOf(temps[i])))
+                drawCircle(color = AppColors.ChartLine, radius = 4f, center = Offset(xOf(i), yOf(temps[i])))
             }
         }
 
@@ -333,14 +329,14 @@ private fun HourlySection(hourly: List<HourlyForecast>) {
                 ) {
                     Text(
                         text = timeFmt.format(Date(item.dt * 1000)),
-                        color = if (isNewDay) AccentBlue else TextSecondary,
+                        color = if (isNewDay) AppColors.AccentBlue else AppColors.TextSecondary,
                         fontSize = 11.sp,
                         fontWeight = if (isNewDay) FontWeight.SemiBold else FontWeight.Normal,
                     )
                     if (isNewDay) {
                         Text(
                             text = dayFmt.format(Date(item.dt * 1000)),
-                            color = AccentBlue,
+                            color = AppColors.AccentBlue,
                             fontSize = 10.sp,
                         )
                     }
@@ -366,7 +362,7 @@ private fun DailyForecastRow(daily: DailyForecast) {
     ) {
         Text(
             text = dayLabel,
-            color = TextPrimary,
+            color = AppColors.TextPrimary,
             fontSize = 15.sp,
             modifier = Modifier.weight(1.2f),
         )
@@ -378,14 +374,14 @@ private fun DailyForecastRow(daily: DailyForecast) {
         Spacer(Modifier.width(8.dp))
         Text(
             text = "${(daily.pop * 100).roundToInt()}%",
-            color = AccentBlue,
+            color = AppColors.AccentBlue,
             fontSize = 13.sp,
             modifier = Modifier.width(36.dp),
         )
         Spacer(Modifier.weight(0.5f))
         Text(
             text = "${daily.tempMin.roundToInt()}°",
-            color = TextSecondary,
+            color = AppColors.TextSecondary,
             fontSize = 15.sp,
             modifier = Modifier.width(36.dp),
             textAlign = TextAlign.End,
@@ -393,14 +389,14 @@ private fun DailyForecastRow(daily: DailyForecast) {
         Spacer(Modifier.width(8.dp))
         Text(
             text = "${daily.tempMax.roundToInt()}°",
-            color = TextPrimary,
+            color = AppColors.TextPrimary,
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.width(36.dp),
             textAlign = TextAlign.End,
         )
     }
-    HorizontalDivider(color = BgCard, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
+    HorizontalDivider(color = AppColors.BgCard, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
 }
 
 @Composable
@@ -413,7 +409,7 @@ private fun FavoriteCitiesBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(BgCard)
+            .background(AppColors.BgCard)
             .navigationBarsPadding(),     // above virtual nav buttons
     ) {
         HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
@@ -428,13 +424,13 @@ private fun FavoriteCitiesBar(
             Icon(
                 Icons.Default.LocationOn,
                 contentDescription = null,
-                tint = TextSecondary,
+                tint = AppColors.TextSecondary,
                 modifier = Modifier.size(16.dp),
             )
             Spacer(Modifier.width(4.dp))
             Text(
                 text = cityName,
-                color = TextPrimary,
+                color = AppColors.TextPrimary,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.weight(1f),
@@ -442,15 +438,15 @@ private fun FavoriteCitiesBar(
             Surface(
                 onClick = onSelectClick,
                 shape = RoundedCornerShape(16.dp),
-                color = AccentBlue.copy(alpha = 0.15f),
+                color = AppColors.AccentBlue.copy(alpha = 0.15f),
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Icon(Icons.Default.Search, null, tint = AccentBlue, modifier = Modifier.size(14.dp))
-                    Text("選擇地區", color = AccentBlue, fontSize = 13.sp)
+                    Icon(Icons.Default.Search, null, tint = AppColors.AccentBlue, modifier = Modifier.size(14.dp))
+                    Text(stringResource(R.string.action_select_location), color = AppColors.AccentBlue, fontSize = 13.sp)
                 }
             }
         }
@@ -473,8 +469,8 @@ private fun FavoriteCitiesBar(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Icon(Icons.Default.Star, null, tint = StarColor, modifier = Modifier.size(12.dp))
-                            Text(city.name, color = TextPrimary, fontSize = 12.sp)
+                            Icon(Icons.Default.Star, null, tint = AppColors.StarColor, modifier = Modifier.size(12.dp))
+                            Text(city.name, color = AppColors.TextPrimary, fontSize = 12.sp)
                         }
                     }
                 }

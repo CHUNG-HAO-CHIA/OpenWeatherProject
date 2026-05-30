@@ -1,0 +1,15 @@
+<resources>
+    <string name="title_location_management">Manage Locations</string>
+    <string name="hint_search_city">Search city name…</string>
+    <string name="msg_no_city_found">No results for \"%s\"</string>
+    <string name="label_search_results">Search Results</string>
+    <string name="label_favorites_count">⭐ Favorites (%1$d / %2$d)</string>
+    <string name="label_saved_locations">Saved Locations</string>
+    <string name="msg_no_saved_locations">No saved locations</string>
+    <string name="msg_no_saved_hint">Search a city above and tap \"+\" to add it.\nStar ⭐ up to %d locations for quick switching.</string>
+    <string name="label_already_saved">Saved</string>
+    <string name="cd_save">Save</string>
+    <string name="cd_remove_favorite">Remove from favorites</string>
+    <string name="cd_add_favorite">Add to favorites</string>
+    <string name="cd_delete">Delete</string>
+</resources>

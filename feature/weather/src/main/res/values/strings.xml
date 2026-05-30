@@ -1,0 +1,8 @@
+<resources>
+    <string name="stat_feels_like">Feels Like</string>
+    <string name="stat_humidity">Humidity</string>
+    <string name="stat_wind_speed">Wind</string>
+    <string name="label_five_day_forecast">5-Day Forecast</string>
+    <string name="label_hourly_forecast">3-Hour Forecast</string>
+    <string name="action_select_location">Select Location</string>
+</resources>
