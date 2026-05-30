@@ -1,23 +1,44 @@
 package com.app.openweather.feature.weather.ui
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import org.koin.androidx.compose.koinViewModel
+import coil.compose.AsyncImage
 import com.app.openweather.core.domain.model.CurrentWeather
 import com.app.openweather.core.domain.model.DailyForecast
+import com.app.openweather.core.domain.model.HourlyForecast
 import com.app.openweather.feature.weather.viewmodel.WeatherViewModel
+import org.koin.androidx.compose.koinViewModel
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class)
+private val BgDark = Color(0xFF1B2033)
+private val BgCard = Color(0xFF252B3E)
+private val AccentBlue = Color(0xFF5B9CF6)
+private val TextPrimary = Color.White
+private val TextSecondary = Color(0xFFABB3C9)
+private val ChartLine = Color(0xFFF5C842)
+
 @Composable
 fun WeatherScreen(
     lat: Double,
@@ -31,30 +52,33 @@ fun WeatherScreen(
         viewModel.loadWeather(lat, lon)
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(uiState.currentWeather?.cityName ?: "Weather") },
-                actions = {
-                    TextButton(onClick = onCityListClick) { Text("Cities") }
-                }
-            )
-        }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            when {
-                uiState.isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                uiState.error != null -> Text(
-                    text = "Error: ${uiState.error}",
-                    modifier = Modifier.align(Alignment.Center)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BgDark)
+            .statusBarsPadding()
+    ) {
+        when {
+            uiState.isLoading && uiState.currentWeather == null -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center),
+                    color = AccentBlue,
                 )
-                else -> WeatherContent(
+            }
+            uiState.error != null && uiState.currentWeather == null -> {
+                Text(
+                    text = uiState.error ?: "Unknown error",
+                    color = TextSecondary,
+                    modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                    textAlign = TextAlign.Center,
+                )
+            }
+            else -> {
+                WeatherContent(
                     currentWeather = uiState.currentWeather,
+                    hourlyForecast = uiState.hourlyForecast,
                     weeklyForecast = uiState.weeklyForecast,
+                    onCityListClick = onCityListClick,
                 )
             }
         }
@@ -64,21 +88,43 @@ fun WeatherScreen(
 @Composable
 private fun WeatherContent(
     currentWeather: CurrentWeather?,
+    hourlyForecast: List<HourlyForecast>,
     weeklyForecast: List<DailyForecast>,
+    onCityListClick: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = 24.dp),
     ) {
-        currentWeather?.let { weather ->
-            item { CurrentWeatherCard(weather) }
+        // Header: location
+        item {
+            LocationHeader(
+                cityName = currentWeather?.cityName ?: "—",
+                onCityListClick = onCityListClick,
+            )
         }
+
+        // Current weather hero
+        currentWeather?.let { weather ->
+            item { CurrentWeatherHero(weather) }
+        }
+
+        // Hourly chart
+        if (hourlyForecast.isNotEmpty()) {
+            item {
+                HourlySection(hourlyForecast)
+            }
+        }
+
+        // Daily forecast
         if (weeklyForecast.isNotEmpty()) {
             item {
+                Spacer(Modifier.height(12.dp))
                 Text(
-                    text = "7-Day Forecast",
-                    style = MaterialTheme.typography.titleMedium,
+                    text = "7 天預報",
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
             items(weeklyForecast) { daily ->
@@ -89,41 +135,283 @@ private fun WeatherContent(
 }
 
 @Composable
-private fun CurrentWeatherCard(weather: CurrentWeather) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+private fun LocationHeader(cityName: String, onCityListClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = "📍", fontSize = 14.sp)
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text = cityName,
+            color = TextPrimary,
+            fontWeight = FontWeight.Medium,
+            fontSize = 16.sp,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onCityListClick) {
+            Text("選擇地區", color = AccentBlue, fontSize = 14.sp)
+        }
+    }
+}
+
+@Composable
+private fun CurrentWeatherHero(weather: CurrentWeather) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = "${weather.temperature.toInt()}°C", style = MaterialTheme.typography.displayMedium)
-            Text(text = weather.description.replaceFirstChar { it.uppercase() })
-            HorizontalDivider()
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("Feels like ${weather.feelsLike.toInt()}°C")
-                Text("Humidity ${weather.humidity}%")
-                Text("Wind ${weather.windSpeed} m/s")
+            // Weather icon
+            AsyncImage(
+                model = "https://openweathermap.org/img/wn/${weather.iconCode}@2x.png",
+                contentDescription = weather.description,
+                modifier = Modifier.size(80.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            // Temperature
+            Column {
+                Text(
+                    text = "${weather.temperature.roundToInt()}°C",
+                    color = TextPrimary,
+                    fontSize = 56.sp,
+                    fontWeight = FontWeight.Light,
+                    lineHeight = 56.sp,
+                )
+                Text(
+                    text = weather.description.replaceFirstChar { it.uppercase() },
+                    color = TextSecondary,
+                    fontSize = 15.sp,
+                )
             }
         }
+
+        Spacer(Modifier.height(12.dp))
+
+        // Stats row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            StatChip(label = "體感", value = "${weather.feelsLike.roundToInt()}°")
+            StatChip(label = "濕度", value = "${weather.humidity}%")
+            StatChip(label = "風速", value = "${(weather.windSpeed * 3.6).roundToInt()} km/h")
+        }
+    }
+}
+
+@Composable
+private fun StatChip(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = value, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+        Text(text = label, color = TextSecondary, fontSize = 12.sp)
+    }
+}
+
+@Composable
+private fun HourlySection(hourly: List<HourlyForecast>) {
+    val temps = hourly.map { it.temp }
+    val minTemp = temps.minOrNull() ?: 0.0
+    val maxTemp = temps.maxOrNull() ?: 1.0
+    val itemWidthDp = 72.dp
+    val chartHeightDp = 80.dp
+    val scrollState = rememberScrollState()
+
+    val density = LocalDensity.current
+    val itemWidthPx = with(density) { itemWidthDp.toPx() }
+    val chartHeightPx = with(density) { chartHeightDp.toPx() }
+
+    // Pre-compute labels once
+    val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val dayFmt  = remember { SimpleDateFormat("M/d E", Locale.getDefault()) }
+
+    // Find indices where the calendar date changes → draw a day separator
+    val dayChangeIndices = remember(hourly) {
+        val cal = java.util.Calendar.getInstance()
+        hourly.mapIndexedNotNull { idx, item ->
+            if (idx == 0) return@mapIndexedNotNull null
+            val prevDay = run {
+                cal.timeInMillis = hourly[idx - 1].dt * 1000
+                cal.get(java.util.Calendar.DAY_OF_YEAR)
+            }
+            val curDay = run {
+                cal.timeInMillis = item.dt * 1000
+                cal.get(java.util.Calendar.DAY_OF_YEAR)
+            }
+            if (curDay != prevDay) idx else null
+        }.toSet()
+    }
+
+    // Section header
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = "每3小時預報", color = TextSecondary, fontSize = 13.sp)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(BgCard)
+            .horizontalScroll(scrollState),
+    ) {
+        val totalWidth = itemWidthDp * hourly.size
+
+        Spacer(Modifier.height(8.dp))
+
+        // Temperature labels
+        Row(modifier = Modifier.width(totalWidth)) {
+            hourly.forEachIndexed { idx, item ->
+                Box(
+                    modifier = Modifier
+                        .width(itemWidthDp)
+                        .then(if (idx in dayChangeIndices) Modifier.background(Color.White.copy(alpha = 0.04f)) else Modifier),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "${item.temp.roundToInt()}°",
+                        color = TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+            }
+        }
+
+        // Bezier chart canvas — day separators drawn as vertical dashed lines
+        Canvas(modifier = Modifier.width(totalWidth).height(chartHeightDp)) {
+            if (temps.size < 2) return@Canvas
+            val range = (maxTemp - minTemp).coerceAtLeast(1.0)
+            val vPad = chartHeightPx * 0.15f
+
+            fun xOf(i: Int) = i * itemWidthPx + itemWidthPx / 2f
+            fun yOf(t: Double) = (vPad + (1.0 - (t - minTemp) / range) * (chartHeightPx - 2 * vPad)).toFloat()
+
+            // Day separator lines
+            for (idx in dayChangeIndices) {
+                val x = xOf(idx) - itemWidthPx / 2f
+                drawLine(
+                    color = Color.White.copy(alpha = 0.15f),
+                    start = Offset(x, 0f),
+                    end = Offset(x, chartHeightPx),
+                    strokeWidth = 1f,
+                )
+            }
+
+            // Temperature curve
+            val path = Path()
+            path.moveTo(xOf(0), yOf(temps[0]))
+            for (i in 1 until temps.size) {
+                val x0 = xOf(i - 1); val y0 = yOf(temps[i - 1])
+                val x1 = xOf(i);     val y1 = yOf(temps[i])
+                val cx = (x0 + x1) / 2f
+                path.cubicTo(cx, y0, cx, y1, x1, y1)
+            }
+            drawPath(path, color = ChartLine, style = Stroke(width = 3f, cap = StrokeCap.Round))
+            for (i in temps.indices) {
+                drawCircle(color = ChartLine, radius = 4f, center = Offset(xOf(i), yOf(temps[i])))
+            }
+        }
+
+        // Weather icons
+        Row(modifier = Modifier.width(totalWidth)) {
+            hourly.forEach { item ->
+                Box(modifier = Modifier.width(itemWidthDp), contentAlignment = Alignment.Center) {
+                    AsyncImage(
+                        model = "https://openweathermap.org/img/wn/${item.iconCode}.png",
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp),
+                    )
+                }
+            }
+        }
+
+        // Time label row — show "M/d E" at day boundaries, otherwise just "HH:mm"
+        Row(modifier = Modifier.width(totalWidth)) {
+            hourly.forEachIndexed { idx, item ->
+                val isNewDay = idx in dayChangeIndices || idx == 0
+                Column(
+                    modifier = Modifier.width(itemWidthDp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = timeFmt.format(Date(item.dt * 1000)),
+                        color = if (isNewDay) AccentBlue else TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = if (isNewDay) FontWeight.SemiBold else FontWeight.Normal,
+                    )
+                    if (isNewDay) {
+                        Text(
+                            text = dayFmt.format(Date(item.dt * 1000)),
+                            color = AccentBlue,
+                            fontSize = 10.sp,
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
     }
 }
 
 @Composable
 private fun DailyForecastRow(daily: DailyForecast) {
     val dayLabel = remember(daily.date) {
-        SimpleDateFormat("EEE, MMM d", Locale.getDefault())
-            .format(Date(daily.date * 1000))
+        SimpleDateFormat("EEEE", Locale.getDefault()).format(Date(daily.date * 1000))
     }
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(dayLabel, modifier = Modifier.weight(1f))
-            Text(daily.description.replaceFirstChar { it.uppercase() }, modifier = Modifier.weight(1f))
-            Text("${daily.tempMin.toInt()}° / ${daily.tempMax.toInt()}°")
-        }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = dayLabel,
+            color = TextPrimary,
+            fontSize = 15.sp,
+            modifier = Modifier.weight(1.2f),
+        )
+        AsyncImage(
+            model = "https://openweathermap.org/img/wn/${daily.iconCode}.png",
+            contentDescription = daily.description,
+            modifier = Modifier.size(32.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = "${(daily.pop * 100).roundToInt()}%",
+            color = AccentBlue,
+            fontSize = 13.sp,
+            modifier = Modifier.width(36.dp),
+        )
+        Spacer(Modifier.weight(0.5f))
+        Text(
+            text = "${daily.tempMin.roundToInt()}°",
+            color = TextSecondary,
+            fontSize = 15.sp,
+            modifier = Modifier.width(36.dp),
+            textAlign = TextAlign.End,
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = "${daily.tempMax.roundToInt()}°",
+            color = TextPrimary,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.width(36.dp),
+            textAlign = TextAlign.End,
+        )
     }
+    HorizontalDivider(color = BgCard, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
 }

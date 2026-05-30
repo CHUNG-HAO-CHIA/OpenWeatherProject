@@ -2,8 +2,9 @@ package com.app.openweather.core.data.repository
 
 import com.app.openweather.core.domain.model.CurrentWeather
 import com.app.openweather.core.domain.model.DailyForecast
+import com.app.openweather.core.domain.model.HourlyForecast
 import com.app.openweather.core.network.dto.CurrentWeatherDto
-import com.app.openweather.core.network.dto.DailyDto
+import com.app.openweather.core.network.dto.ForecastItemDto
 
 fun CurrentWeatherDto.toDomain() = CurrentWeather(
     cityName = name,
@@ -17,12 +18,25 @@ fun CurrentWeatherDto.toDomain() = CurrentWeather(
     sunset = sys.sunset,
 )
 
-fun DailyDto.toDomain() = DailyForecast(
-    date = dt,
-    tempMin = temp.min,
-    tempMax = temp.max,
+fun ForecastItemDto.toHourlyDomain() = HourlyForecast(
+    dt = dt,
+    temp = main.temp,
+    feelsLike = main.feelsLike,
+    humidity = main.humidity,
+    windSpeed = wind.speed,
+    pop = pop,
     description = weather.firstOrNull()?.description.orEmpty(),
     iconCode = weather.firstOrNull()?.icon.orEmpty(),
-    humidity = humidity,
-    windSpeed = speed,
+)
+
+// Each ForecastItemDto represents a 3h window; daily min/max are aggregated in the repository.
+fun ForecastItemDto.toDailyDomain(tempMin: Double, tempMax: Double) = DailyForecast(
+    date = dt,
+    tempMin = tempMin,
+    tempMax = tempMax,
+    description = weather.firstOrNull()?.description.orEmpty(),
+    iconCode = weather.firstOrNull()?.icon.orEmpty(),
+    humidity = main.humidity,
+    windSpeed = wind.speed,
+    pop = pop,
 )

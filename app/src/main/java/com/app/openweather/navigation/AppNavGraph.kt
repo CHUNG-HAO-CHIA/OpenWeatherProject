@@ -1,28 +1,57 @@
 package com.app.openweather.navigation
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import android.annotation.SuppressLint
+import android.content.Context
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.app.openweather.feature.city.ui.CityListScreen
 import com.app.openweather.feature.weather.ui.WeatherScreen
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
+import com.google.android.gms.location.LocationServices
+import kotlinx.coroutines.tasks.await
 
 private const val ROUTE_WEATHER = "weather"
 private const val ROUTE_CITY_LIST = "city_list"
 
-// Default city: Taipei
 private const val DEFAULT_LAT = 25.0478
 private const val DEFAULT_LON = 121.5318
 
+@SuppressLint("MissingPermission")
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun AppNavGraph() {
     val navController = rememberNavController()
-    var selectedLat by rememberSaveable { mutableDoubleStateOf(DEFAULT_LAT) }
-    var selectedLon by rememberSaveable { mutableDoubleStateOf(DEFAULT_LON) }
+    val context = LocalContext.current
+
+    var selectedLat by remember { mutableDoubleStateOf(DEFAULT_LAT) }
+    var selectedLon by remember { mutableDoubleStateOf(DEFAULT_LON) }
+    var locationReady by remember { mutableStateOf(false) }
+
+    val locationPermission = rememberPermissionState(
+        android.Manifest.permission.ACCESS_COARSE_LOCATION
+    ) { granted ->
+        if (!granted) locationReady = true // fall back to default
+    }
+
+    LaunchedEffect(locationPermission.status.isGranted) {
+        if (locationPermission.status.isGranted) {
+            val loc = getLastLocation(context)
+            if (loc != null) {
+                selectedLat = loc.first
+                selectedLon = loc.second
+            }
+            locationReady = true
+        } else if (!locationReady) {
+            locationPermission.launchPermissionRequest()
+        }
+    }
+
+    if (!locationReady) return
 
     NavHost(navController = navController, startDestination = ROUTE_WEATHER) {
         composable(ROUTE_WEATHER) {
@@ -42,5 +71,16 @@ fun AppNavGraph() {
                 onBackClick = { navController.popBackStack() },
             )
         }
+    }
+}
+
+@SuppressLint("MissingPermission")
+private suspend fun getLastLocation(context: Context): Pair<Double, Double>? {
+    return try {
+        val client = LocationServices.getFusedLocationProviderClient(context)
+        val loc = client.lastLocation.await()
+        if (loc != null) Pair(loc.latitude, loc.longitude) else null
+    } catch (e: Exception) {
+        null
     }
 }

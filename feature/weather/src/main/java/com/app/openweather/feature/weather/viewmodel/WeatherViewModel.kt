@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.app.openweather.core.common.Result
 import com.app.openweather.core.domain.model.CurrentWeather
 import com.app.openweather.core.domain.model.DailyForecast
+import com.app.openweather.core.domain.model.HourlyForecast
 import com.app.openweather.core.domain.usecase.GetCurrentWeatherUseCase
+import com.app.openweather.core.domain.usecase.GetHourlyForecastUseCase
 import com.app.openweather.core.domain.usecase.GetWeeklyForecastUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,12 +17,14 @@ import kotlinx.coroutines.launch
 data class WeatherUiState(
     val isLoading: Boolean = false,
     val currentWeather: CurrentWeather? = null,
+    val hourlyForecast: List<HourlyForecast> = emptyList(),
     val weeklyForecast: List<DailyForecast> = emptyList(),
     val error: String? = null,
 )
 
 class WeatherViewModel(
     private val getCurrentWeather: GetCurrentWeatherUseCase,
+    private val getHourlyForecast: GetHourlyForecastUseCase,
     private val getWeeklyForecast: GetWeeklyForecastUseCase,
 ) : ViewModel() {
 
@@ -34,6 +38,13 @@ class WeatherViewModel(
                     is Result.Loading -> _uiState.value.copy(isLoading = true, error = null)
                     is Result.Success -> _uiState.value.copy(isLoading = false, currentWeather = result.data)
                     is Result.Error -> _uiState.value.copy(isLoading = false, error = result.exception.message)
+                }
+            }
+        }
+        viewModelScope.launch {
+            getHourlyForecast(lat, lon).collect { result ->
+                if (result is Result.Success) {
+                    _uiState.value = _uiState.value.copy(hourlyForecast = result.data)
                 }
             }
         }
