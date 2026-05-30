@@ -45,11 +45,14 @@ dependencies {
     implementation(project(":core:domain"))
     implementation(project(":core:data"))
     implementation(project(":core:network"))
+    implementation(project(":core:ui"))
     implementation(project(":feature:weather"))
     implementation(project(":feature:city"))
     implementation(project(":feature:map"))
 
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
+
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)

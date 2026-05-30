@@ -12,6 +12,7 @@ import com.app.openweather.feature.city.ui.CityListScreen
 import com.app.openweather.feature.map.ui.MapScreen
 import com.app.openweather.feature.weather.ui.WeatherScreen
 import com.app.openweather.ui.MainViewModel
+import com.app.openweather.ui.settings.SettingsScreen
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
@@ -23,6 +24,7 @@ import org.koin.androidx.compose.koinViewModel
 private const val ROUTE_WEATHER = "weather"
 private const val ROUTE_CITY_LIST = "city_list"
 private const val ROUTE_MAP = "map"
+private const val ROUTE_SETTINGS = "settings"
 
 @SuppressLint("MissingPermission")
 @OptIn(ExperimentalPermissionsApi::class)
@@ -61,6 +63,7 @@ fun AppNavGraph(viewModel: MainViewModel = koinViewModel()) {
                 onCityListClick = { navController.navigate(ROUTE_CITY_LIST) },
                 onFavoriteCityClick = { city -> viewModel.updateLocation(city.lat, city.lon) },
                 onMapClick = { navController.navigate(ROUTE_MAP) },
+                onSettingsClick = { navController.navigate(ROUTE_SETTINGS) },
             )
         }
         composable(ROUTE_CITY_LIST) {
@@ -83,6 +86,11 @@ fun AppNavGraph(viewModel: MainViewModel = koinViewModel()) {
                         popUpTo(ROUTE_WEATHER) { inclusive = true }
                     }
                 }
+            )
+        }
+        composable(ROUTE_SETTINGS) {
+            SettingsScreen(
+                onBackClick = { navController.popBackStack() }
             )
         }
     }

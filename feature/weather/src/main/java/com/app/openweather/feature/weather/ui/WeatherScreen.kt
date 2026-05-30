@@ -13,10 +13,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -42,6 +45,7 @@ import org.koin.androidx.compose.koinViewModel
 import androidx.compose.ui.res.stringResource
 
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WeatherScreen(
     lat: Double,
@@ -50,6 +54,7 @@ fun WeatherScreen(
     onCityListClick: () -> Unit,
     onFavoriteCityClick: (SavedCity) -> Unit,
     onMapClick: () -> Unit,
+    onSettingsClick: () -> Unit,
     viewModel: WeatherViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -60,6 +65,17 @@ fun WeatherScreen(
 
     Scaffold(
         containerColor = AppColors.BgDark,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { },
+                actions = {
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = AppColors.TextPrimary)
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+            )
+        }
     ) { padding ->
         Column(
             modifier = Modifier

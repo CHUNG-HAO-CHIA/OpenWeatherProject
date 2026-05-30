@@ -17,6 +17,9 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlin.math.abs
 
+import com.app.openweather.core.network.api.NominatimApi
+import com.app.openweather.core.network.dto.NominatimDto
+
 class WeatherRepositoryImpl(
     private val api: WeatherApi,
     private val dao: WeatherDao,

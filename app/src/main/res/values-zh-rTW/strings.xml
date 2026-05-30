@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">天氣預報</string>
+    <string name="title_settings">設定</string>
+    <string name="label_language">語言</string>
+    <string name="lang_system">系統預設</string>
+    <string name="lang_en">English</string>
+    <string name="lang_zh">繁體中文</string>
 </resources>

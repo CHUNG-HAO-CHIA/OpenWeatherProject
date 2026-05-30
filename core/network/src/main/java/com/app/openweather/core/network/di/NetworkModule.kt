@@ -4,6 +4,7 @@ import com.app.openweather.core.network.BuildConfig
 import com.app.openweather.core.network.api.NominatimApi
 import com.app.openweather.core.network.api.WeatherApi
 import com.app.openweather.core.network.interceptor.ApiKeyInterceptor
+import com.app.openweather.core.network.interceptor.LanguageInterceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import org.koin.core.qualifier.named
@@ -40,16 +41,21 @@ val networkModule = module {
             .build()
     }
 
-    // OWM client — injects API key automatically via interceptor
+    // Language interceptor — injects current locale into API queries
+    single { LanguageInterceptor() }
+
+    // OWM client — injects API key and language automatically
     single(named(OWM)) {
         get<OkHttpClient>().newBuilder()
+            .addInterceptor(get<LanguageInterceptor>())
             .addInterceptor(ApiKeyInterceptor(BuildConfig.API_KEY))
             .build()
     }
 
-    // Nominatim client — attaches required User-Agent header per OSM policy
+    // Nominatim client — attaches required User-Agent and language
     single(named(NOMINATIM)) {
         get<OkHttpClient>().newBuilder()
+            .addInterceptor(get<LanguageInterceptor>())
             .addInterceptor { chain ->
                 val request = chain.request().newBuilder()
                     .header("User-Agent", "OpenWeatherApp/1.0 (${BuildConfig.APPLICATION_ID})")
