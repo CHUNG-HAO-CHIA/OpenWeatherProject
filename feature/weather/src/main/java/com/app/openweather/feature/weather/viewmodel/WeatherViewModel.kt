@@ -68,7 +68,7 @@ class WeatherViewModel(
     private val dayFmt  = SimpleDateFormat("M/d E", Locale.getDefault())
     private val dailyDayFmt = SimpleDateFormat("EEEE", Locale.getDefault())
 
-    fun loadWeather(lat: Double, lon: Double) {
+    fun loadWeather(lat: Double, lon: Double, overrideCityName: String? = null) {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             combine(
@@ -82,7 +82,7 @@ class WeatherViewModel(
 
                     next = when (weatherResult) {
                         is Result.Loading -> next.copy(isLoading = true, error = null)
-                        is Result.Success -> next.copy(isLoading = false, currentWeather = mapCurrentWeather(weatherResult.data))
+                        is Result.Success -> next.copy(isLoading = false, currentWeather = mapCurrentWeather(weatherResult.data, overrideCityName))
                         is Result.Error -> next.copy(isLoading = false, error = weatherResult.exception.message)
                     }
 
@@ -101,9 +101,20 @@ class WeatherViewModel(
         }
     }
 
-    private fun mapCurrentWeather(domain: CurrentWeather): CurrentWeatherUiModel {
+    private fun resolveLocalizedName(domain: CurrentWeather): String {
+        val locale = Locale.getDefault()
+        val lang = locale.language
+        val country = locale.country
+        val names = domain.localizedNames
+        return names["name:$lang-$country"]
+            ?: names["name:$lang"]
+            ?: names["name"]
+            ?: domain.cityName
+    }
+
+    private fun mapCurrentWeather(domain: CurrentWeather, overrideCityName: String? = null): CurrentWeatherUiModel {
         return CurrentWeatherUiModel(
-            cityName = domain.cityName,
+            cityName = overrideCityName ?: resolveLocalizedName(domain),
             temperature = "${domain.temperature.roundToInt()}°C",
             feelsLike = "${domain.feelsLike.roundToInt()}°",
             humidity = "${domain.humidity}%",

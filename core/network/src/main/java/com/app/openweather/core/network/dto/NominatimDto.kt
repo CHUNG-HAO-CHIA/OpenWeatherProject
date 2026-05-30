@@ -10,6 +10,7 @@ data class NominatimDto(
     @SerialName("display_name") val displayName: String,
     @SerialName("address") val address: NominatimAddressDto? = null,
     @SerialName("type") val type: String? = null,
+    @SerialName("namedetails") val namedetails: Map<String, String>? = null,
 )
 
 @Serializable

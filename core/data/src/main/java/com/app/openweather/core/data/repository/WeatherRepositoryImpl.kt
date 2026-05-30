@@ -17,17 +17,19 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlin.math.abs
 
+import com.app.openweather.core.common.coordKey
 import com.app.openweather.core.network.api.NominatimApi
 import com.app.openweather.core.network.dto.NominatimDto
 
 class WeatherRepositoryImpl(
     private val api: WeatherApi,
     private val dao: WeatherDao,
+    private val nominatimApi: NominatimApi,
 ) : WeatherRepository {
 
     override fun getCurrentWeather(lat: Double, lon: Double): Flow<Result<CurrentWeather>> = flow {
         val cityKey = cityKey(lat, lon)
-        
+
         // Initial state: try to get from DB first
         val initialCached = dao.observeCurrentWeather(cityKey).map { it?.toDomain() }.firstOrNull()
         if (initialCached != null) {
@@ -38,7 +40,17 @@ class WeatherRepositoryImpl(
 
         // Try to refresh from API
         try {
-            val domain = api.getCurrentWeather(lat, lon).toDomain()
+            val weatherDomain = api.getCurrentWeather(lat, lon).toDomain()
+            val nominatimDto = try {
+                nominatimApi.reverse(lat, lon)
+            } catch (_: Exception) {
+                null
+            }
+            
+            val domain = weatherDomain.copy(
+                cityName = nominatimDto?.displayName ?: weatherDomain.cityName,
+                localizedNames = nominatimDto?.namedetails ?: emptyMap()
+            )
             dao.upsertCurrentWeather(domain.toEntity(cityKey))
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
@@ -102,7 +114,7 @@ class WeatherRepositoryImpl(
         }
     }
 
-    private fun cityKey(lat: Double, lon: Double) = String.format(java.util.Locale.US, "%.4f,%.4f", lat, lon)
+    private fun cityKey(lat: Double, lon: Double) = coordKey(lat, lon)
 
     // visible for testing
     internal fun calculateForecast(rawItems: List<RawForecastItem>): Forecast {

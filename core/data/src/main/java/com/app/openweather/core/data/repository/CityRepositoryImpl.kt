@@ -1,5 +1,6 @@
 package com.app.openweather.core.data.repository
 
+import com.app.openweather.core.common.coordKey
 import com.app.openweather.core.data.local.dao.CityDao
 import com.app.openweather.core.data.local.entity.SavedCityEntity
 import com.app.openweather.core.domain.model.SavedCity
@@ -70,7 +71,7 @@ private fun NominatimDto.toDomain(): SavedCity {
     // show state as subtitle only when it differs from cityName
     val subtitle = if (addr?.state != cityName) addr?.state else null
     return SavedCity(
-        id = "%.4f,%.4f".format(latD, lonD),
+        id = coordKey(latD, lonD),
         name = cityName,
         country = addr?.countryCode?.uppercase() ?: addr?.country.orEmpty(),
         state = subtitle,

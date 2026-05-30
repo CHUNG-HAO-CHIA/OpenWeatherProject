@@ -10,6 +10,7 @@ data class CurrentWeather(
     val iconCode: String,
     val sunrise: Long,
     val sunset: Long,
+    val localizedNames: Map<String, String> = emptyMap(),
 )
 
 data class HourlyForecast(

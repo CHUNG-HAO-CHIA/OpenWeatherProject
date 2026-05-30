@@ -61,7 +61,7 @@ fun AppNavGraph(viewModel: MainViewModel = koinViewModel()) {
                 lon = navState.lon,
                 favoriteCities = favoriteCities,
                 onCityListClick = { navController.navigate(ROUTE_CITY_LIST) },
-                onFavoriteCityClick = { city -> viewModel.updateLocation(city.lat, city.lon) },
+                onFavoriteCityClick = { city -> viewModel.updateLocation(city.lat, city.lon, city.name) },
                 onMapClick = { navController.navigate(ROUTE_MAP) },
                 onSettingsClick = { navController.navigate(ROUTE_SETTINGS) },
             )

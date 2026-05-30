@@ -71,6 +71,7 @@ import org.koin.androidx.compose.koinViewModel
 fun WeatherScreen(
     lat: Double,
     lon: Double,
+    overrideCityName: String? = null,
     favoriteCities: List<SavedCity>,
     onCityListClick: () -> Unit,
     onFavoriteCityClick: (SavedCity) -> Unit,
@@ -80,8 +81,8 @@ fun WeatherScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(lat, lon) {
-        viewModel.loadWeather(lat, lon)
+    LaunchedEffect(lat, lon, overrideCityName) {
+        viewModel.loadWeather(lat, lon, overrideCityName)
     }
 
     Scaffold(

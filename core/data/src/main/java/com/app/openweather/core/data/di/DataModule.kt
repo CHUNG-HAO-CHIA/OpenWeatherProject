@@ -22,6 +22,6 @@ val dataModule = module {
     single { get<AppDatabase>().weatherDao() }
     single { get<AppDatabase>().cityDao() }
 
-    single<WeatherRepository> { WeatherRepositoryImpl(get(), get()) }
+    single<WeatherRepository> { WeatherRepositoryImpl(get(), get(), get()) }
     single<CityRepository> { CityRepositoryImpl(get(), get<NominatimApi>()) }
 }

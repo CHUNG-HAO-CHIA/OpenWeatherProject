@@ -12,7 +12,9 @@ interface NominatimApi {
         @Query("format") format: String = "json",
         @Query("limit") limit: Int = 8,
         @Query("addressdetails") addressDetails: Int = 1,
-        @Query("accept-language") language: String = "zh-TW,zh,en",
+        @Query("namedetails") namedetails: Int = 1,
+        @Query("zoom") zoom: Int = 10,
+        //@Query("accept-language") language: String = "en,zh-TW,zh-CN,zh,ja,ko,fr,de,es,pt,ar,ru",
     ): List<NominatimDto>
 
     @GET("reverse")
@@ -21,6 +23,8 @@ interface NominatimApi {
         @Query("lon") lon: Double,
         @Query("format") format: String = "json",
         @Query("addressdetails") addressDetails: Int = 1,
-        @Query("accept-language") language: String = "zh-TW,zh,en",
+        @Query("namedetails") namedetails: Int = 1,
+        @Query("zoom") zoom: Int = 10,
+        //@Query("accept-language") language: String = "en,zh-TW,zh-CN,zh,ja,ko,fr,de,es,pt,ar,ru",
     ): NominatimDto
 }

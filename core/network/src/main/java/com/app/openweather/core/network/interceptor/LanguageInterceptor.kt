@@ -1,26 +1,18 @@
 package com.app.openweather.core.network.interceptor
 
-import androidx.appcompat.app.AppCompatDelegate
-import androidx.core.os.LocaleListCompat
 import okhttp3.Interceptor
 import okhttp3.Response
+import java.util.Locale
 
 class LanguageInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
         val originalUrl = originalRequest.url
-        
-        // 獲取目前的語系設定（優先取 App 設定，若無則取系統設定）
-        val appLocales = AppCompatDelegate.getApplicationLocales()
-        val primaryLocale = if (!appLocales.isEmpty) {
-            appLocales.get(0)
-        } else {
-            // 使用 getAdjustedDefault() 獲取經過系統調整後的預設語系
-            LocaleListCompat.getAdjustedDefault().get(0)
-        }
 
-        val lang = primaryLocale?.language ?: "en"
-        val country = primaryLocale?.country ?: ""
+        // Locale.getDefault() 在任何執行緒都能正確反映 AppCompatDelegate.setApplicationLocales() 的設定
+        val locale = Locale.getDefault()
+        val lang = locale.language.ifEmpty { "en" }
+        val country = locale.country
 
         // 轉換為各 API 支援的格式
         // OWM 需要: zh_tw, zh_cn, en, ja...

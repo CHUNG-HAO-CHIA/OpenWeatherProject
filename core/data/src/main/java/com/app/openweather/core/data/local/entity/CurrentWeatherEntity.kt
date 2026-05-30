@@ -15,5 +15,6 @@ data class CurrentWeatherEntity(
     val iconCode: String,
     val sunrise: Long,
     val sunset: Long,
+    val localizedNames: String = "",   // JSON: {"name:en":"Tokyo","name:ja":"東京",...}
     val updatedAt: Long = System.currentTimeMillis(),
 )
