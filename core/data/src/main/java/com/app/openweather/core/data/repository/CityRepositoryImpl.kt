@@ -40,6 +40,10 @@ class CityRepositoryImpl(
     }
 
     override suspend fun deleteCity(cityId: String) = dao.deleteCity(cityId)
+
+    override suspend fun reverseGeocode(lat: Double, lon: Double): SavedCity {
+        return nominatim.reverse(lat, lon).toDomain()
+    }
 }
 
 private fun SavedCityEntity.toDomain() = SavedCity(
@@ -55,20 +59,20 @@ private fun SavedCity.toEntity() = SavedCityEntity(
 private fun NominatimDto.toDomain(): SavedCity {
     val addr = address
     // city > town > village > county > state > first segment of display_name
-    val cityName = addr.city
-        ?: addr.town
-        ?: addr.village
-        ?: addr.county
-        ?: addr.state
+    val cityName = addr?.city
+        ?: addr?.town
+        ?: addr?.village
+        ?: addr?.county
+        ?: addr?.state
         ?: displayName.substringBefore(",").trim()
     val latD = lat.toDouble()
     val lonD = lon.toDouble()
     // show state as subtitle only when it differs from cityName
-    val subtitle = if (addr.state != cityName) addr.state else null
+    val subtitle = if (addr?.state != cityName) addr?.state else null
     return SavedCity(
         id = "%.4f,%.4f".format(latD, lonD),
         name = cityName,
-        country = addr.countryCode?.uppercase() ?: addr.country.orEmpty(),
+        country = addr?.countryCode?.uppercase() ?: addr?.country.orEmpty(),
         state = subtitle,
         lat = latD,
         lon = lonD,

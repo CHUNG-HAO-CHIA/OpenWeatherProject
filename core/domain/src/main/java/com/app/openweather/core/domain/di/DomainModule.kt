@@ -1,14 +1,6 @@
 package com.app.openweather.core.domain.di
 
-import com.app.openweather.core.domain.usecase.CityUseCases
-import com.app.openweather.core.domain.usecase.DeleteCityUseCase
-import com.app.openweather.core.domain.usecase.GetCurrentWeatherUseCase
-import com.app.openweather.core.domain.usecase.GetForecastUseCase
-import com.app.openweather.core.domain.usecase.GetSavedCitiesUseCase
-import com.app.openweather.core.domain.usecase.SaveCityUseCase
-import com.app.openweather.core.domain.usecase.SearchCitiesUseCase
-import com.app.openweather.core.domain.usecase.ToggleFavoriteCityUseCase
-import com.app.openweather.core.domain.usecase.WeatherUseCases
+import com.app.openweather.core.domain.usecase.*
 import org.koin.dsl.module
 
 val domainModule = module {
@@ -19,7 +11,9 @@ val domainModule = module {
     factory { SaveCityUseCase(get()) }
     factory { ToggleFavoriteCityUseCase(get()) }
     factory { DeleteCityUseCase(get()) }
+    factory { ReverseGeocodeUseCase(get()) }
+    factory { GetWeatherForCitiesUseCase(get()) }
 
-    factory { CityUseCases(get(), get(), get(), get(), get()) }
-    factory { WeatherUseCases(get(), get()) }
+    factory { CityUseCases(get(), get(), get(), get(), get(), get()) }
+    factory { WeatherUseCases(get(), get(), get()) }
 }

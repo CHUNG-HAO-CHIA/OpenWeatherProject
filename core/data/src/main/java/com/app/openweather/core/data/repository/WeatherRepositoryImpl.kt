@@ -24,25 +24,38 @@ class WeatherRepositoryImpl(
 
     override fun getCurrentWeather(lat: Double, lon: Double): Flow<Result<CurrentWeather>> = flow {
         val cityKey = cityKey(lat, lon)
-        val cached = dao.observeCurrentWeather(cityKey).firstOrNull()
-        if (cached != null) emit(Result.Success(cached.toDomain())) else emit(Result.Loading)
+        
+        // Initial state: try to get from DB first
+        val initialCached = dao.observeCurrentWeather(cityKey).map { it?.toDomain() }.firstOrNull()
+        if (initialCached != null) {
+            emit(Result.Success(initialCached))
+        } else {
+            emit(Result.Loading)
+        }
 
+        // Try to refresh from API
         try {
             val domain = api.getCurrentWeather(lat, lon).toDomain()
             dao.upsertCurrentWeather(domain.toEntity(cityKey))
-            emit(Result.Success(domain))
         } catch (e: Exception) {
-            if (cached == null) emit(Result.Error(e))
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            // Only emit error if we don't have cached data
+            if (initialCached == null) {
+                emit(Result.Error(e))
+            }
         }
 
-        emitAll(dao.observeCurrentWeather(cityKey).map { entity ->
-            if (entity != null) Result.Success(entity.toDomain())
-            else Result.Error(Exception("No cached data"))
-        })
+        // Observe continuous updates from DB
+        dao.observeCurrentWeather(cityKey).collect { entity ->
+            if (entity != null) {
+                emit(Result.Success(entity.toDomain()))
+            }
+        }
     }
 
     override fun getForecast(lat: Double, lon: Double): Flow<Result<Forecast>> = flow {
         val cityKey = cityKey(lat, lon)
+        
         val cachedHourly = dao.observeHourlyForecast(cityKey).firstOrNull()
         val cachedDaily = dao.observeDailyForecast(cityKey).firstOrNull()
 
@@ -58,7 +71,6 @@ class WeatherRepositoryImpl(
         try {
             val allItems = api.getForecast(lat, lon).list
             val rawItems = allItems.map { it.toRawDomain() }
-            
             val forecast = calculateForecast(rawItems)
 
             dao.deleteHourlyForecast(cityKey)
@@ -67,23 +79,24 @@ class WeatherRepositoryImpl(
             dao.deleteDailyForecast(cityKey)
             dao.upsertDailyForecasts(forecast.daily.map { it.toEntity(cityKey) })
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             if (cachedHourly.isNullOrEmpty() || cachedDaily.isNullOrEmpty()) {
                 emit(Result.Error(e))
             }
         }
 
-        emitAll(
-            dao.observeHourlyForecast(cityKey).combine(dao.observeDailyForecast(cityKey)) { hourly, daily ->
-                if (hourly.isNotEmpty() && daily.isNotEmpty()) {
-                    Result.Success(Forecast(
-                        hourly = hourly.map { it.toDomain() },
-                        daily = daily.map { it.toDomain() },
-                    ))
-                } else {
-                    Result.Error(Exception("No cached forecast"))
-                }
+        dao.observeHourlyForecast(cityKey).combine(dao.observeDailyForecast(cityKey)) { hourly, daily ->
+            if (hourly.isNotEmpty() && daily.isNotEmpty()) {
+                Forecast(
+                    hourly = hourly.map { it.toDomain() },
+                    daily = daily.map { it.toDomain() },
+                )
+            } else null
+        }.collect { forecast ->
+            if (forecast != null) {
+                emit(Result.Success(forecast))
             }
-        )
+        }
     }
 
     private fun cityKey(lat: Double, lon: Double) = String.format(java.util.Locale.US, "%.4f,%.4f", lat, lon)

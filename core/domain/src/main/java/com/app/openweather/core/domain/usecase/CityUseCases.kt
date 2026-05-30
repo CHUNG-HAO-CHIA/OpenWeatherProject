@@ -6,4 +6,5 @@ data class CityUseCases(
     val saveCity: SaveCityUseCase,
     val toggleFavorite: ToggleFavoriteCityUseCase,
     val deleteCity: DeleteCityUseCase,
+    val reverseGeocode: ReverseGeocodeUseCase,
 )

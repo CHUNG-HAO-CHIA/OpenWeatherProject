@@ -11,8 +11,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -47,6 +49,7 @@ fun WeatherScreen(
     favoriteCities: List<SavedCity>,
     onCityListClick: () -> Unit,
     onFavoriteCityClick: (SavedCity) -> Unit,
+    onMapClick: () -> Unit,
     viewModel: WeatherViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -55,46 +58,51 @@ fun WeatherScreen(
         viewModel.loadWeather(lat, lon)
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AppColors.BgDark)
-            .statusBarsPadding(),
-    ) {
-        // Scrollable weather content — takes all remaining space
-        Box(modifier = Modifier.weight(1f)) {
-            when {
-                uiState.isLoading && uiState.currentWeather == null -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center),
-                        color = AppColors.AccentBlue,
-                    )
-                }
-                uiState.error != null && uiState.currentWeather == null -> {
-                    Text(
-                        text = uiState.error ?: "Unknown error",
-                        color = AppColors.TextSecondary,
-                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                        textAlign = TextAlign.Center,
-                    )
-                }
-                else -> {
-                    WeatherContent(
-                        currentWeather = uiState.currentWeather,
-                        hourlyForecast = uiState.hourlyForecast,
-                        weeklyForecast = uiState.weeklyForecast,
-                    )
+    Scaffold(
+        containerColor = AppColors.BgDark,
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .background(AppColors.BgDark),
+        ) {
+            // Scrollable weather content — takes all remaining space
+            Box(modifier = Modifier.weight(1f)) {
+                when {
+                    uiState.isLoading && uiState.currentWeather == null -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.Center),
+                            color = AppColors.AccentBlue,
+                        )
+                    }
+                    uiState.error != null && uiState.currentWeather == null -> {
+                        Text(
+                            text = uiState.error ?: "Unknown error",
+                            color = AppColors.TextSecondary,
+                            modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                    else -> {
+                        WeatherContent(
+                            currentWeather = uiState.currentWeather,
+                            hourlyForecast = uiState.hourlyForecast,
+                            weeklyForecast = uiState.weeklyForecast,
+                        )
+                    }
                 }
             }
-        }
 
-        // Fixed bottom bar — never scrolls, sits above nav bar
-        FavoriteCitiesBar(
-            cityName = uiState.currentWeather?.cityName ?: "—",
-            favorites = favoriteCities,
-            onCityClick = onFavoriteCityClick,
-            onSelectClick = onCityListClick,
-        )
+            // Fixed bottom bar — never scrolls, sits above nav bar
+            FavoriteCitiesBar(
+                cityName = uiState.currentWeather?.cityName ?: "—",
+                favorites = favoriteCities,
+                onCityClick = onFavoriteCityClick,
+                onSelectClick = onCityListClick,
+                onMapClick = onMapClick,
+            )
+        }
     }
 }
 
@@ -383,6 +391,7 @@ private fun FavoriteCitiesBar(
     favorites: List<SavedCity>,
     onCityClick: (SavedCity) -> Unit,
     onSelectClick: () -> Unit,
+    onMapClick: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -392,39 +401,68 @@ private fun FavoriteCitiesBar(
     ) {
         HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
 
-        // Location row — city name + 選擇地區 button
+        // Location row — city name + action buttons
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 Icons.Default.LocationOn,
                 contentDescription = null,
                 tint = AppColors.TextSecondary,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(18.dp),
             )
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(8.dp))
             Text(
                 text = cityName,
                 color = AppColors.TextPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
             )
-            Surface(
-                onClick = onSelectClick,
-                shape = RoundedCornerShape(16.dp),
-                color = AppColors.AccentBlue.copy(alpha = 0.15f),
+            
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                // Map Button
+                Surface(
+                    onClick = onMapClick,
+                    shape = RoundedCornerShape(12.dp),
+                    color = AppColors.AccentBlue.copy(alpha = 0.15f),
                 ) {
-                    Icon(Icons.Default.Search, null, tint = AppColors.AccentBlue, modifier = Modifier.size(14.dp))
-                    Text(stringResource(R.string.action_select_location), color = AppColors.AccentBlue, fontSize = 13.sp)
+                    Box(
+                        modifier = Modifier.padding(8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Default.Map,
+                            null,
+                            tint = AppColors.AccentBlue,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                // List Button
+                Surface(
+                    onClick = onSelectClick,
+                    shape = RoundedCornerShape(12.dp),
+                    color = AppColors.AccentBlue,
+                ) {
+                    Box(
+                        modifier = Modifier.padding(8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.List,
+                            null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }

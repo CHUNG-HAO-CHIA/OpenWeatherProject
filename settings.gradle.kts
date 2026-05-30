@@ -33,3 +33,4 @@ include(":core:ui")
 // Feature modules
 include(":feature:weather")
 include(":feature:city")
+include(":feature:map")

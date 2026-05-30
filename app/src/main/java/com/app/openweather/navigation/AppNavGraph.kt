@@ -9,17 +9,20 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.app.openweather.feature.city.ui.CityListScreen
+import com.app.openweather.feature.map.ui.MapScreen
 import com.app.openweather.feature.weather.ui.WeatherScreen
 import com.app.openweather.ui.MainViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import kotlinx.coroutines.tasks.await
 import org.koin.androidx.compose.koinViewModel
 
 private const val ROUTE_WEATHER = "weather"
 private const val ROUTE_CITY_LIST = "city_list"
+private const val ROUTE_MAP = "map"
 
 @SuppressLint("MissingPermission")
 @OptIn(ExperimentalPermissionsApi::class)
@@ -57,6 +60,7 @@ fun AppNavGraph(viewModel: MainViewModel = koinViewModel()) {
                 favoriteCities = favoriteCities,
                 onCityListClick = { navController.navigate(ROUTE_CITY_LIST) },
                 onFavoriteCityClick = { city -> viewModel.updateLocation(city.lat, city.lon) },
+                onMapClick = { navController.navigate(ROUTE_MAP) },
             )
         }
         composable(ROUTE_CITY_LIST) {
@@ -68,6 +72,19 @@ fun AppNavGraph(viewModel: MainViewModel = koinViewModel()) {
                 onBackClick = { navController.popBackStack() },
             )
         }
+        composable(ROUTE_MAP) {
+            MapScreen(
+                initialLat = navState.lat,
+                initialLon = navState.lon,
+                onBackClick = { navController.popBackStack() },
+                onViewDetailsClick = { city ->
+                    viewModel.updateLocation(city.lat, city.lon)
+                    navController.navigate(ROUTE_WEATHER) {
+                        popUpTo(ROUTE_WEATHER) { inclusive = true }
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -75,7 +92,14 @@ fun AppNavGraph(viewModel: MainViewModel = koinViewModel()) {
 private suspend fun getLastLocation(context: Context): Pair<Double, Double>? {
     return try {
         val client = LocationServices.getFusedLocationProviderClient(context)
-        val loc = client.lastLocation.await()
+        // 嘗試獲取最後已知位置 (快但不一定有)
+        var loc = client.lastLocation.await()
+        
+        // 如果沒有最後已知位置，嘗試獲取當前位置 (較慢但較準確)
+        if (loc == null) {
+            loc = client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null).await()
+        }
+        
         if (loc != null) Pair(loc.latitude, loc.longitude) else null
     } catch (e: Exception) {
         null

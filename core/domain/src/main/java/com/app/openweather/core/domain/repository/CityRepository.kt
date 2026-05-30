@@ -11,4 +11,5 @@ interface CityRepository {
     suspend fun getFavoriteCount(): Int
     suspend fun setFavorite(cityId: String, isFavorite: Boolean)
     suspend fun deleteCity(cityId: String)
+    suspend fun reverseGeocode(lat: Double, lon: Double): SavedCity
 }

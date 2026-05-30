@@ -14,4 +14,13 @@ interface NominatimApi {
         @Query("addressdetails") addressDetails: Int = 1,
         @Query("accept-language") language: String = "zh-TW,zh,en",
     ): List<NominatimDto>
+
+    @GET("reverse")
+    suspend fun reverse(
+        @Query("lat") lat: Double,
+        @Query("lon") lon: Double,
+        @Query("format") format: String = "json",
+        @Query("addressdetails") addressDetails: Int = 1,
+        @Query("accept-language") language: String = "zh-TW,zh,en",
+    ): NominatimDto
 }

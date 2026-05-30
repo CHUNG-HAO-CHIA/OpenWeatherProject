@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -45,6 +47,7 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":feature:weather"))
     implementation(project(":feature:city"))
+    implementation(project(":feature:map"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

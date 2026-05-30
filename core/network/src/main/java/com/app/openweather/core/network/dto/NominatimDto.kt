@@ -8,7 +8,7 @@ data class NominatimDto(
     @SerialName("lat") val lat: String,
     @SerialName("lon") val lon: String,
     @SerialName("display_name") val displayName: String,
-    @SerialName("address") val address: NominatimAddressDto,
+    @SerialName("address") val address: NominatimAddressDto? = null,
     @SerialName("type") val type: String? = null,
 )
 
