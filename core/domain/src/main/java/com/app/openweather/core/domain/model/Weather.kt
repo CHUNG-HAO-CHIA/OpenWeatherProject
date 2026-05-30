@@ -39,6 +39,20 @@ data class Forecast(
     val daily: List<DailyForecast>,
 )
 
+data class RawForecastItem(
+    val dt: Long,
+    val dtTxt: String,
+    val temp: Double,
+    val tempMin: Double,
+    val tempMax: Double,
+    val feelsLike: Double,
+    val humidity: Int,
+    val windSpeed: Double,
+    val pop: Double,
+    val description: String,
+    val iconCode: String,
+)
+
 data class City(
     val name: String,
     val country: String,

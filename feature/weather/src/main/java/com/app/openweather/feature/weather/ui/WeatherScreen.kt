@@ -31,16 +31,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.app.openweather.core.ui.AppColors
 import com.app.openweather.feature.weather.R
-import com.app.openweather.core.domain.model.CurrentWeather
-import com.app.openweather.core.domain.model.DailyForecast
-import com.app.openweather.core.domain.model.HourlyForecast
 import com.app.openweather.core.domain.model.SavedCity
 import com.app.openweather.feature.weather.viewmodel.WeatherViewModel
+import com.app.openweather.feature.weather.viewmodel.CurrentWeatherUiModel
+import com.app.openweather.feature.weather.viewmodel.DailyForecastUiModel
+import com.app.openweather.feature.weather.viewmodel.HourlyForecastUiModel
 import org.koin.androidx.compose.koinViewModel
 import androidx.compose.ui.res.stringResource
-import java.text.SimpleDateFormat
-import java.util.*
-import kotlin.math.roundToInt
 
 
 @Composable
@@ -103,9 +100,9 @@ fun WeatherScreen(
 
 @Composable
 private fun WeatherContent(
-    currentWeather: CurrentWeather?,
-    hourlyForecast: List<HourlyForecast>,
-    weeklyForecast: List<DailyForecast>,
+    currentWeather: CurrentWeatherUiModel?,
+    hourlyForecast: List<HourlyForecastUiModel>,
+    weeklyForecast: List<DailyForecastUiModel>,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -141,7 +138,7 @@ private fun WeatherContent(
 
 
 @Composable
-private fun CurrentWeatherHero(weather: CurrentWeather) {
+private fun CurrentWeatherHero(weather: CurrentWeatherUiModel) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -153,7 +150,7 @@ private fun CurrentWeatherHero(weather: CurrentWeather) {
         ) {
             // Weather icon
             AsyncImage(
-                model = "https://openweathermap.org/img/wn/${weather.iconCode}@2x.png",
+                model = weather.iconUrl,
                 contentDescription = weather.description,
                 modifier = Modifier.size(80.dp),
             )
@@ -161,14 +158,14 @@ private fun CurrentWeatherHero(weather: CurrentWeather) {
             // Temperature
             Column {
                 Text(
-                    text = "${weather.temperature.roundToInt()}°C",
+                    text = weather.temperature,
                     color = AppColors.TextPrimary,
                     fontSize = 56.sp,
                     fontWeight = FontWeight.Light,
                     lineHeight = 56.sp,
                 )
                 Text(
-                    text = weather.description.replaceFirstChar { it.uppercase() },
+                    text = weather.description,
                     color = AppColors.TextSecondary,
                     fontSize = 15.sp,
                 )
@@ -182,9 +179,9 @@ private fun CurrentWeatherHero(weather: CurrentWeather) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            StatChip(label = stringResource(R.string.stat_feels_like), value = "${weather.feelsLike.roundToInt()}°")
-            StatChip(label = stringResource(R.string.stat_humidity), value = "${weather.humidity}%")
-            StatChip(label = stringResource(R.string.stat_wind_speed), value = "${(weather.windSpeed * 3.6).roundToInt()} km/h")
+            StatChip(label = stringResource(R.string.stat_feels_like), value = weather.feelsLike)
+            StatChip(label = stringResource(R.string.stat_humidity), value = weather.humidity)
+            StatChip(label = stringResource(R.string.stat_wind_speed), value = weather.windSpeed)
         }
     }
 }
@@ -198,8 +195,8 @@ private fun StatChip(label: String, value: String) {
 }
 
 @Composable
-private fun HourlySection(hourly: List<HourlyForecast>) {
-    val temps = hourly.map { it.temp }
+private fun HourlySection(hourly: List<HourlyForecastUiModel>) {
+    val temps = hourly.map { it.tempValue }
     val minTemp = temps.minOrNull() ?: 0.0
     val maxTemp = temps.maxOrNull() ?: 1.0
     val itemWidthDp = 72.dp
@@ -210,24 +207,10 @@ private fun HourlySection(hourly: List<HourlyForecast>) {
     val itemWidthPx = with(density) { itemWidthDp.toPx() }
     val chartHeightPx = with(density) { chartHeightDp.toPx() }
 
-    // Pre-compute labels once
-    val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-    val dayFmt  = remember { SimpleDateFormat("M/d E", Locale.getDefault()) }
-
     // Find indices where the calendar date changes → draw a day separator
     val dayChangeIndices = remember(hourly) {
-        val cal = java.util.Calendar.getInstance()
         hourly.mapIndexedNotNull { idx, item ->
-            if (idx == 0) return@mapIndexedNotNull null
-            val prevDay = run {
-                cal.timeInMillis = hourly[idx - 1].dt * 1000
-                cal.get(java.util.Calendar.DAY_OF_YEAR)
-            }
-            val curDay = run {
-                cal.timeInMillis = item.dt * 1000
-                cal.get(java.util.Calendar.DAY_OF_YEAR)
-            }
-            if (curDay != prevDay) idx else null
+            if (idx > 0 && item.isNewDay) idx else null
         }.toSet()
     }
 
@@ -258,11 +241,11 @@ private fun HourlySection(hourly: List<HourlyForecast>) {
                 Box(
                     modifier = Modifier
                         .width(itemWidthDp)
-                        .then(if (idx in dayChangeIndices) Modifier.background(Color.White.copy(alpha = 0.04f)) else Modifier),
+                        .then(if (item.isNewDay && idx > 0) Modifier.background(Color.White.copy(alpha = 0.04f)) else Modifier),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "${item.temp.roundToInt()}°",
+                        text = item.tempLabel,
                         color = AppColors.TextPrimary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
@@ -311,7 +294,7 @@ private fun HourlySection(hourly: List<HourlyForecast>) {
             hourly.forEach { item ->
                 Box(modifier = Modifier.width(itemWidthDp), contentAlignment = Alignment.Center) {
                     AsyncImage(
-                        model = "https://openweathermap.org/img/wn/${item.iconCode}.png",
+                        model = item.iconUrl,
                         contentDescription = null,
                         modifier = Modifier.size(32.dp),
                     )
@@ -319,23 +302,22 @@ private fun HourlySection(hourly: List<HourlyForecast>) {
             }
         }
 
-        // Time label row — show "M/d E" at day boundaries, otherwise just "HH:mm"
+        // Time label row
         Row(modifier = Modifier.width(totalWidth)) {
-            hourly.forEachIndexed { idx, item ->
-                val isNewDay = idx in dayChangeIndices || idx == 0
+            hourly.forEach { item ->
                 Column(
                     modifier = Modifier.width(itemWidthDp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
-                        text = timeFmt.format(Date(item.dt * 1000)),
-                        color = if (isNewDay) AppColors.AccentBlue else AppColors.TextSecondary,
+                        text = item.timeLabel,
+                        color = if (item.isNewDay) AppColors.AccentBlue else AppColors.TextSecondary,
                         fontSize = 11.sp,
-                        fontWeight = if (isNewDay) FontWeight.SemiBold else FontWeight.Normal,
+                        fontWeight = if (item.isNewDay) FontWeight.SemiBold else FontWeight.Normal,
                     )
-                    if (isNewDay) {
+                    if (item.isNewDay) {
                         Text(
-                            text = dayFmt.format(Date(item.dt * 1000)),
+                            text = item.dateLabel,
                             color = AppColors.AccentBlue,
                             fontSize = 10.sp,
                         )
@@ -349,11 +331,7 @@ private fun HourlySection(hourly: List<HourlyForecast>) {
 }
 
 @Composable
-private fun DailyForecastRow(daily: DailyForecast) {
-    val dayLabel = remember(daily.date) {
-        SimpleDateFormat("EEEE", Locale.getDefault()).format(Date(daily.date * 1000))
-    }
-
+private fun DailyForecastRow(daily: DailyForecastUiModel) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -361,26 +339,26 @@ private fun DailyForecastRow(daily: DailyForecast) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = dayLabel,
+            text = daily.dayLabel,
             color = AppColors.TextPrimary,
             fontSize = 15.sp,
             modifier = Modifier.weight(1.2f),
         )
         AsyncImage(
-            model = "https://openweathermap.org/img/wn/${daily.iconCode}.png",
-            contentDescription = daily.description,
+            model = daily.iconUrl,
+            contentDescription = null,
             modifier = Modifier.size(32.dp),
         )
         Spacer(Modifier.width(8.dp))
         Text(
-            text = "${(daily.pop * 100).roundToInt()}%",
+            text = daily.popLabel,
             color = AppColors.AccentBlue,
             fontSize = 13.sp,
             modifier = Modifier.width(36.dp),
         )
         Spacer(Modifier.weight(0.5f))
         Text(
-            text = "${daily.tempMin.roundToInt()}°",
+            text = daily.tempMinLabel,
             color = AppColors.TextSecondary,
             fontSize = 15.sp,
             modifier = Modifier.width(36.dp),
@@ -388,7 +366,7 @@ private fun DailyForecastRow(daily: DailyForecast) {
         )
         Spacer(Modifier.width(8.dp))
         Text(
-            text = "${daily.tempMax.roundToInt()}°",
+            text = daily.tempMaxLabel,
             color = AppColors.TextPrimary,
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,

@@ -3,10 +3,12 @@ package com.app.openweather.core.data.repository
 import com.app.openweather.core.common.Result
 import com.app.openweather.core.data.local.dao.WeatherDao
 import com.app.openweather.core.domain.model.CurrentWeather
+import com.app.openweather.core.domain.model.DailyForecast
 import com.app.openweather.core.domain.model.Forecast
+import com.app.openweather.core.domain.model.HourlyForecast
+import com.app.openweather.core.domain.model.RawForecastItem
 import com.app.openweather.core.domain.repository.WeatherRepository
 import com.app.openweather.core.network.api.WeatherApi
-import com.app.openweather.core.network.dto.ForecastItemDto
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
@@ -55,19 +57,15 @@ class WeatherRepositoryImpl(
 
         try {
             val allItems = api.getForecast(lat, lon).list
+            val rawItems = allItems.map { it.toRawDomain() }
+            
+            val forecast = calculateForecast(rawItems)
 
-            val hourlyDomains = allItems.take(24).map { it.toHourlyDomain() }
             dao.deleteHourlyForecast(cityKey)
-            dao.upsertHourlyForecasts(hourlyDomains.map { it.toEntity(cityKey) })
+            dao.upsertHourlyForecasts(forecast.hourly.map { it.toEntity(cityKey) })
 
-            val dailyDomains = allItems.groupByDay().map { (_, dayItems) ->
-                val representative = dayItems.closestToNoon()
-                val tempMin = dayItems.minOf { it.main.tempMin }
-                val tempMax = dayItems.maxOf { it.main.tempMax }
-                representative.toDailyDomain(tempMin, tempMax)
-            }
             dao.deleteDailyForecast(cityKey)
-            dao.upsertDailyForecasts(dailyDomains.map { it.toEntity(cityKey) })
+            dao.upsertDailyForecasts(forecast.daily.map { it.toEntity(cityKey) })
         } catch (e: Exception) {
             if (cachedHourly.isNullOrEmpty() || cachedDaily.isNullOrEmpty()) {
                 emit(Result.Error(e))
@@ -89,15 +87,47 @@ class WeatherRepositoryImpl(
     }
 
     private fun cityKey(lat: Double, lon: Double) = String.format(java.util.Locale.US, "%.4f,%.4f", lat, lon)
-}
 
-private fun List<ForecastItemDto>.groupByDay(): Map<String, List<ForecastItemDto>> =
-    groupBy { it.dtTxt.take(10) }
+    // visible for testing
+    internal fun calculateForecast(rawItems: List<RawForecastItem>): Forecast {
+        val hourly = rawItems.take(24).map { it.toHourly() }
+        
+        val daily = rawItems.groupBy { it.dtTxt.take(10) }.map { (_, dayItems) ->
+            val representative = dayItems.closestToNoon()
+            val tempMin = dayItems.minOf { it.tempMin }
+            val tempMax = dayItems.maxOf { it.tempMax }
+            
+            DailyForecast(
+                date = representative.dt,
+                tempMin = tempMin,
+                tempMax = tempMax,
+                description = representative.description,
+                iconCode = representative.iconCode,
+                humidity = representative.humidity,
+                windSpeed = representative.windSpeed,
+                pop = representative.pop
+            )
+        }
+        
+        return Forecast(hourly, daily)
+    }
 
-private fun List<ForecastItemDto>.closestToNoon(): ForecastItemDto {
-    val noonSeconds = 12 * 3600
-    return minByOrNull { item ->
-        val timeOfDay = (item.dt % 86400).toInt()
-        abs(timeOfDay - noonSeconds)
-    } ?: first()
+    private fun List<RawForecastItem>.closestToNoon(): RawForecastItem {
+        val noonSeconds = 12 * 3600
+        return minByOrNull { item ->
+            val timeOfDay = (item.dt % 86400).toInt()
+            abs(timeOfDay - noonSeconds)
+        } ?: first()
+    }
+
+    private fun RawForecastItem.toHourly() = HourlyForecast(
+        dt = dt,
+        temp = temp,
+        feelsLike = feelsLike,
+        humidity = humidity,
+        windSpeed = windSpeed,
+        pop = pop,
+        description = description,
+        iconCode = iconCode,
+    )
 }

@@ -153,8 +153,8 @@ fun CityListScreen(
                 }
             } else {
                 // ── Saved cities ──
-                val favorites = uiState.savedCities.filter { it.isFavorite }
-                val others    = uiState.savedCities.filter { !it.isFavorite }
+                val favorites = uiState.favoriteCities
+                val others    = uiState.otherCities
 
                 if (favorites.isNotEmpty()) {
                     item { SectionLabel(stringResource(R.string.label_favorites_count, favorites.size, MAX_FAVORITES)) }

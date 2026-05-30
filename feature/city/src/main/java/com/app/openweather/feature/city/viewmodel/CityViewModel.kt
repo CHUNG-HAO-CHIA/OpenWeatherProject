@@ -14,12 +14,15 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
 data class CityUiState(
-    val savedCities: List<SavedCity> = emptyList(),
+    val favoriteCities: List<SavedCity> = emptyList(),
+    val otherCities: List<SavedCity> = emptyList(),
     val searchResults: List<SavedCity> = emptyList(),
     val query: String = "",
     val isSearching: Boolean = false,
     val errorMessage: String? = null,
-)
+) {
+    val savedCities: List<SavedCity> get() = favoriteCities + otherCities
+}
 
 @OptIn(FlowPreview::class)
 class CityViewModel(
@@ -34,7 +37,10 @@ class CityViewModel(
     init {
         viewModelScope.launch {
             useCases.getSavedCities().collect { cities ->
-                _uiState.value = _uiState.value.copy(savedCities = cities)
+                _uiState.value = _uiState.value.copy(
+                    favoriteCities = cities.filter { it.isFavorite },
+                    otherCities = cities.filter { !it.isFavorite }
+                )
             }
         }
         viewModelScope.launch {
