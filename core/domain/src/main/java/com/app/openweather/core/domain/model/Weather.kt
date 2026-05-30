@@ -40,3 +40,14 @@ data class City(
     val lat: Double,
     val lon: Double,
 )
+
+data class SavedCity(
+    val id: String,          // "$name,$country"
+    val name: String,
+    val country: String,
+    val state: String?,
+    val lat: Double,
+    val lon: Double,
+    val isFavorite: Boolean,
+    val savedAt: Long,
+)

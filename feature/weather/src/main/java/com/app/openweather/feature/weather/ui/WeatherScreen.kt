@@ -5,8 +5,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +32,7 @@ import coil.compose.AsyncImage
 import com.app.openweather.core.domain.model.CurrentWeather
 import com.app.openweather.core.domain.model.DailyForecast
 import com.app.openweather.core.domain.model.HourlyForecast
+import com.app.openweather.core.domain.model.SavedCity
 import com.app.openweather.feature.weather.viewmodel.WeatherViewModel
 import org.koin.androidx.compose.koinViewModel
 import java.text.SimpleDateFormat
@@ -38,12 +45,15 @@ private val AccentBlue = Color(0xFF5B9CF6)
 private val TextPrimary = Color.White
 private val TextSecondary = Color(0xFFABB3C9)
 private val ChartLine = Color(0xFFF5C842)
+private val StarColor = Color(0xFFF5C842)
 
 @Composable
 fun WeatherScreen(
     lat: Double,
     lon: Double,
+    favoriteCities: List<SavedCity>,
     onCityListClick: () -> Unit,
+    onFavoriteCityClick: (SavedCity) -> Unit,
     viewModel: WeatherViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -52,36 +62,46 @@ fun WeatherScreen(
         viewModel.loadWeather(lat, lon)
     }
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(BgDark)
-            .statusBarsPadding()
+            .statusBarsPadding(),
     ) {
-        when {
-            uiState.isLoading && uiState.currentWeather == null -> {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center),
-                    color = AccentBlue,
-                )
-            }
-            uiState.error != null && uiState.currentWeather == null -> {
-                Text(
-                    text = uiState.error ?: "Unknown error",
-                    color = TextSecondary,
-                    modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                    textAlign = TextAlign.Center,
-                )
-            }
-            else -> {
-                WeatherContent(
-                    currentWeather = uiState.currentWeather,
-                    hourlyForecast = uiState.hourlyForecast,
-                    weeklyForecast = uiState.weeklyForecast,
-                    onCityListClick = onCityListClick,
-                )
+        // Scrollable weather content — takes all remaining space
+        Box(modifier = Modifier.weight(1f)) {
+            when {
+                uiState.isLoading && uiState.currentWeather == null -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.Center),
+                        color = AccentBlue,
+                    )
+                }
+                uiState.error != null && uiState.currentWeather == null -> {
+                    Text(
+                        text = uiState.error ?: "Unknown error",
+                        color = TextSecondary,
+                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                else -> {
+                    WeatherContent(
+                        currentWeather = uiState.currentWeather,
+                        hourlyForecast = uiState.hourlyForecast,
+                        weeklyForecast = uiState.weeklyForecast,
+                    )
+                }
             }
         }
+
+        // Fixed bottom bar — never scrolls, sits above nav bar
+        FavoriteCitiesBar(
+            cityName = uiState.currentWeather?.cityName ?: "—",
+            favorites = favoriteCities,
+            onCityClick = onFavoriteCityClick,
+            onSelectClick = onCityListClick,
+        )
     }
 }
 
@@ -90,20 +110,11 @@ private fun WeatherContent(
     currentWeather: CurrentWeather?,
     hourlyForecast: List<HourlyForecast>,
     weeklyForecast: List<DailyForecast>,
-    onCityListClick: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 24.dp),
+        contentPadding = PaddingValues(bottom = 16.dp),
     ) {
-        // Header: location
-        item {
-            LocationHeader(
-                cityName = currentWeather?.cityName ?: "—",
-                onCityListClick = onCityListClick,
-            )
-        }
-
         // Current weather hero
         currentWeather?.let { weather ->
             item { CurrentWeatherHero(weather) }
@@ -111,9 +122,7 @@ private fun WeatherContent(
 
         // Hourly chart
         if (hourlyForecast.isNotEmpty()) {
-            item {
-                HourlySection(hourlyForecast)
-            }
+            item { HourlySection(hourlyForecast) }
         }
 
         // Daily forecast
@@ -121,7 +130,7 @@ private fun WeatherContent(
             item {
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    text = "7 天預報",
+                    text = "5 天預報",
                     color = TextSecondary,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
@@ -134,28 +143,6 @@ private fun WeatherContent(
     }
 }
 
-@Composable
-private fun LocationHeader(cityName: String, onCityListClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(text = "📍", fontSize = 14.sp)
-        Spacer(Modifier.width(4.dp))
-        Text(
-            text = cityName,
-            color = TextPrimary,
-            fontWeight = FontWeight.Medium,
-            fontSize = 16.sp,
-            modifier = Modifier.weight(1f),
-        )
-        TextButton(onClick = onCityListClick) {
-            Text("選擇地區", color = AccentBlue, fontSize = 14.sp)
-        }
-    }
-}
 
 @Composable
 private fun CurrentWeatherHero(weather: CurrentWeather) {
@@ -414,4 +401,84 @@ private fun DailyForecastRow(daily: DailyForecast) {
         )
     }
     HorizontalDivider(color = BgCard, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
+}
+
+@Composable
+private fun FavoriteCitiesBar(
+    cityName: String,
+    favorites: List<SavedCity>,
+    onCityClick: (SavedCity) -> Unit,
+    onSelectClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(BgCard)
+            .navigationBarsPadding(),     // above virtual nav buttons
+    ) {
+        HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+
+        // Location row — city name + 選擇地區 button
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Default.LocationOn,
+                contentDescription = null,
+                tint = TextSecondary,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text = cityName,
+                color = TextPrimary,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
+            Surface(
+                onClick = onSelectClick,
+                shape = RoundedCornerShape(16.dp),
+                color = AccentBlue.copy(alpha = 0.15f),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Icon(Icons.Default.Search, null, tint = AccentBlue, modifier = Modifier.size(14.dp))
+                    Text("選擇地區", color = AccentBlue, fontSize = 13.sp)
+                }
+            }
+        }
+
+        // Favorite city chips — only shown when there are favorites
+        if (favorites.isNotEmpty()) {
+            LazyRow(
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                items(favorites) { city ->
+                    Surface(
+                        onClick = { onCityClick(city) },
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color.White.copy(alpha = 0.08f),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Icon(Icons.Default.Star, null, tint = StarColor, modifier = Modifier.size(12.dp))
+                            Text(city.name, color = TextPrimary, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

@@ -15,7 +15,7 @@ android {
     compileSdk = 35
     defaultConfig {
         minSdk = 24
-        buildConfigField("String", "BASE_URL", "\"https://api.openweathermap.org/data/2.5/\"")
+        buildConfigField("String", "BASE_URL", "\"https://api.openweathermap.org/\"")
         buildConfigField("String", "API_KEY", "\"${localProperties["WEATHER_API_KEY"]}\"")
     }
     buildFeatures { buildConfig = true }

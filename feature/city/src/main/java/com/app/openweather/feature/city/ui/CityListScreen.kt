@@ -1,27 +1,49 @@
 package com.app.openweather.feature.city.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.app.openweather.core.domain.model.City
+import com.app.openweather.core.domain.model.SavedCity
+import com.app.openweather.core.domain.usecase.MAX_FAVORITES
 import com.app.openweather.feature.city.viewmodel.CityViewModel
 import org.koin.androidx.compose.koinViewModel
+
+private val BgDark = Color(0xFF1B2033)
+private val BgCard = Color(0xFF252B3E)
+private val BgHighlight = Color(0xFF2E3650)
+private val AccentBlue = Color(0xFF5B9CF6)
+private val StarColor = Color(0xFFF5C842)
+private val TextPrimary = Color.White
+private val TextSecondary = Color(0xFFABB3C9)
+private val Danger = Color(0xFFFF6B6B)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,41 +52,247 @@ fun CityListScreen(
     onBackClick: () -> Unit,
     viewModel: CityViewModel = koinViewModel(),
 ) {
-    val cities by viewModel.cities.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusRequester = remember { FocusRequester() }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(uiState.errorMessage) {
+        uiState.errorMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearError()
+        }
+    }
 
     Scaffold(
+        containerColor = BgDark,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = { Text("Select City") },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            Column(modifier = Modifier.background(BgDark)) {
+                // Back + title
+                TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = BgDark),
+                    title = { Text("地點管理", color = TextPrimary, fontWeight = FontWeight.SemiBold) },
+                    navigationIcon = {
+                        IconButton(onClick = onBackClick) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = TextPrimary)
+                        }
                     }
-                }
-            )
+                )
+                // Search bar
+                OutlinedTextField(
+                    value = uiState.query,
+                    onValueChange = viewModel::onQueryChange,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 8.dp)
+                        .focusRequester(focusRequester),
+                    placeholder = { Text("搜尋城市名稱...", color = TextSecondary, fontSize = 14.sp) },
+                    leadingIcon = { Icon(Icons.Default.Search, null, tint = TextSecondary) },
+                    trailingIcon = {
+                        if (uiState.query.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.onQueryChange("") }) {
+                                Icon(Icons.Default.Clear, null, tint = TextSecondary)
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AccentBlue,
+                        unfocusedBorderColor = BgCard,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        cursorColor = AccentBlue,
+                        focusedContainerColor = BgCard,
+                        unfocusedContainerColor = BgCard,
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                )
+                HorizontalDivider(color = BgCard)
+            }
         }
     ) { padding ->
+
+        val isSearching = uiState.query.length >= 2
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
+            contentPadding = PaddingValues(bottom = 32.dp),
         ) {
-            items(
-                items = cities,
-                key = { city -> city.name },
-            ) { city ->
-                CityItem(city = city, onClick = { onCitySelected(city) })
-                HorizontalDivider()
+            if (isSearching) {
+                // ── Search results ──
+                when {
+                    uiState.isSearching -> item {
+                        Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = AccentBlue, modifier = Modifier.size(28.dp))
+                        }
+                    }
+                    uiState.searchResults.isEmpty() -> item {
+                        Text(
+                            "找不到「${uiState.query}」相關城市",
+                            color = TextSecondary,
+                            modifier = Modifier.padding(24.dp),
+                        )
+                    }
+                    else -> {
+                        item { SectionLabel("搜尋結果") }
+                        itemsIndexed(uiState.searchResults, key = { idx, _ -> "search-$idx" }) { _, city ->
+                            val alreadySaved = uiState.savedCities.any { it.id == city.id }
+                            SearchResultRow(
+                                city = city,
+                                alreadySaved = alreadySaved,
+                                onAdd = { viewModel.onSaveCity(city) },
+                                onSelect = {
+                                    viewModel.onSaveCity(city)
+                                    keyboardController?.hide()
+                                    onCitySelected(city.toCity())
+                                },
+                            )
+                            HorizontalDivider(color = BgCard, thickness = 0.5.dp)
+                        }
+                    }
+                }
+            } else {
+                // ── Saved cities ──
+                val favorites = uiState.savedCities.filter { it.isFavorite }
+                val others    = uiState.savedCities.filter { !it.isFavorite }
+
+                if (favorites.isNotEmpty()) {
+                    item { SectionLabel("⭐ 最愛（${favorites.size} / $MAX_FAVORITES）") }
+                    items(favorites, key = { "fav-${it.id}" }) { city ->
+                        SavedCityRow(
+                            city = city,
+                            onSelect = { onCitySelected(city.toCity()) },
+                            onToggleStar = { viewModel.onToggleFavorite(city.id) },
+                            onDelete = { viewModel.onDeleteCity(city.id) },
+                        )
+                        HorizontalDivider(color = BgCard, thickness = 0.5.dp)
+                    }
+                }
+
+                if (others.isNotEmpty()) {
+                    item { SectionLabel("已儲存的地點") }
+                    items(others, key = { "saved-${it.id}" }) { city ->
+                        SavedCityRow(
+                            city = city,
+                            onSelect = { onCitySelected(city.toCity()) },
+                            onToggleStar = { viewModel.onToggleFavorite(city.id) },
+                            onDelete = { viewModel.onDeleteCity(city.id) },
+                        )
+                        HorizontalDivider(color = BgCard, thickness = 0.5.dp)
+                    }
+                }
+
+                if (uiState.savedCities.isEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(48.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text("尚無儲存地點", color = TextSecondary, fontSize = 15.sp)
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "在上方搜尋城市，點「+」加入列表\n加上 ⭐ 可在首頁快速切換（最多 $MAX_FAVORITES 個）",
+                                color = TextSecondary,
+                                fontSize = 13.sp,
+                                lineHeight = 20.sp,
+                            )
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun CityItem(city: City, onClick: () -> Unit) {
-    ListItem(
-        modifier = Modifier.clickable(onClick = onClick),
-        headlineContent = { Text(city.name) },
-        supportingContent = { Text(city.country) },
+private fun SectionLabel(text: String) {
+    Text(
+        text = text,
+        color = TextSecondary,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .background(BgDark)
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
     )
 }
+
+@Composable
+private fun SearchResultRow(
+    city: SavedCity,
+    alreadySaved: Boolean,
+    onAdd: () -> Unit,
+    onSelect: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(BgDark)
+            .clickable(onClick = onSelect)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(city.name, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(
+                listOfNotNull(city.state, city.country).joinToString(", "),
+                color = TextSecondary,
+                fontSize = 12.sp,
+            )
+        }
+        if (alreadySaved) {
+            Text("已儲存", color = TextSecondary, fontSize = 12.sp)
+        } else {
+            IconButton(onClick = onAdd) {
+                Icon(Icons.Default.Add, contentDescription = "儲存", tint = AccentBlue)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SavedCityRow(
+    city: SavedCity,
+    onSelect: () -> Unit,
+    onToggleStar: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(if (city.isFavorite) BgHighlight else BgDark)
+            .clickable(onClick = onSelect)
+            .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(city.name, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(
+                listOfNotNull(city.state, city.country).joinToString(", "),
+                color = TextSecondary,
+                fontSize = 12.sp,
+            )
+        }
+        // Star toggle
+        IconButton(onClick = onToggleStar) {
+            Icon(
+                imageVector = if (city.isFavorite) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                contentDescription = if (city.isFavorite) "取消最愛" else "加入最愛",
+                tint = if (city.isFavorite) StarColor else TextSecondary,
+            )
+        }
+        // Delete
+        IconButton(onClick = onDelete) {
+            Icon(Icons.Default.Delete, contentDescription = "刪除", tint = TextSecondary)
+        }
+    }
+}
+
+private fun SavedCity.toCity() = City(name = name, country = country, lat = lat, lon = lon)
