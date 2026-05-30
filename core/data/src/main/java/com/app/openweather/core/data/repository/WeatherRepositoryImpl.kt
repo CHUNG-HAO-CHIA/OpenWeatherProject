@@ -88,7 +88,7 @@ class WeatherRepositoryImpl(
         )
     }
 
-    private fun cityKey(lat: Double, lon: Double) = "%.4f,%.4f".format(lat, lon)
+    private fun cityKey(lat: Double, lon: Double) = String.format(java.util.Locale.US, "%.4f,%.4f", lat, lon)
 }
 
 private fun List<ForecastItemDto>.groupByDay(): Map<String, List<ForecastItemDto>> =

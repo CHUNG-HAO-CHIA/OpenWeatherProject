@@ -7,8 +7,7 @@ import com.app.openweather.core.domain.model.CurrentWeather
 import com.app.openweather.core.domain.model.DailyForecast
 import com.app.openweather.core.domain.model.Forecast
 import com.app.openweather.core.domain.model.HourlyForecast
-import com.app.openweather.core.domain.usecase.GetCurrentWeatherUseCase
-import com.app.openweather.core.domain.usecase.GetForecastUseCase
+import com.app.openweather.core.domain.usecase.WeatherUseCases
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,8 +25,7 @@ data class WeatherUiState(
 )
 
 class WeatherViewModel(
-    private val getCurrentWeather: GetCurrentWeatherUseCase,
-    private val getForecast: GetForecastUseCase,
+    private val useCases: WeatherUseCases,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(WeatherUiState())
@@ -39,8 +37,8 @@ class WeatherViewModel(
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             combine(
-                getCurrentWeather(lat, lon),
-                getForecast(lat, lon),
+                useCases.getCurrentWeather(lat, lon),
+                useCases.getForecast(lat, lon),
             ) { weatherResult, forecastResult ->
                 Pair(weatherResult, forecastResult)
             }.collect { (weatherResult, forecastResult) ->

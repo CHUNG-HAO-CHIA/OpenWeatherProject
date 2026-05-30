@@ -8,12 +8,19 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
+import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
 import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
 
 private const val OWM = "owm"
 private const val NOMINATIM = "nominatim"
+
+private val json = Json {
+    ignoreUnknownKeys = true  // tolerate new API fields without breaking
+    coerceInputValues = true  // use default value when JSON null hits a non-null field
+}
 
 val networkModule = module {
 
@@ -56,7 +63,7 @@ val networkModule = module {
         Retrofit.Builder()
             .baseUrl(BuildConfig.BASE_URL)
             .client(get(named(OWM)))
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
     }
 
@@ -64,7 +71,7 @@ val networkModule = module {
         Retrofit.Builder()
             .baseUrl("https://nominatim.openstreetmap.org/")
             .client(get(named(NOMINATIM)))
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
     }
 

@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 val localProperties = Properties().apply {
@@ -31,7 +32,8 @@ dependencies {
     implementation(project(":core:domain"))
     implementation(project(":core:common"))
     implementation(libs.retrofit)
-    implementation(libs.retrofit.gson)
+    implementation(libs.retrofit.kotlinx.serialization)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp.logging)
     implementation(libs.koin.android)
     implementation(libs.kotlinx.coroutines.android)

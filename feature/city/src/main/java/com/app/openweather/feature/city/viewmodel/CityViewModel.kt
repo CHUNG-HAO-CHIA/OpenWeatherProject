@@ -3,11 +3,7 @@ package com.app.openweather.feature.city.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.app.openweather.core.domain.model.SavedCity
-import com.app.openweather.core.domain.usecase.DeleteCityUseCase
-import com.app.openweather.core.domain.usecase.GetSavedCitiesUseCase
-import com.app.openweather.core.domain.usecase.SaveCityUseCase
-import com.app.openweather.core.domain.usecase.SearchCitiesUseCase
-import com.app.openweather.core.domain.usecase.ToggleFavoriteCityUseCase
+import com.app.openweather.core.domain.usecase.CityUseCases
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,11 +23,7 @@ data class CityUiState(
 
 @OptIn(FlowPreview::class)
 class CityViewModel(
-    private val getSavedCities: GetSavedCitiesUseCase,
-    private val searchCities: SearchCitiesUseCase,
-    private val saveCity: SaveCityUseCase,
-    private val toggleFavorite: ToggleFavoriteCityUseCase,
-    private val deleteCity: DeleteCityUseCase,
+    private val useCases: CityUseCases,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CityUiState())
@@ -41,7 +33,7 @@ class CityViewModel(
 
     init {
         viewModelScope.launch {
-            getSavedCities().collect { cities ->
+            useCases.getSavedCities().collect { cities ->
                 _uiState.value = _uiState.value.copy(savedCities = cities)
             }
         }
@@ -66,7 +58,7 @@ class CityViewModel(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSearching = true)
             try {
-                val results = searchCities(query)
+                val results = useCases.searchCities(query)
                 _uiState.value = _uiState.value.copy(searchResults = results, isSearching = false)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isSearching = false, errorMessage = "搜尋失敗，請稍後再試")
@@ -75,12 +67,12 @@ class CityViewModel(
     }
 
     fun onSaveCity(city: SavedCity) {
-        viewModelScope.launch { saveCity(city) }
+        viewModelScope.launch { useCases.saveCity(city) }
     }
 
     fun onToggleFavorite(cityId: String) {
         viewModelScope.launch {
-            val result = toggleFavorite(cityId)
+            val result = useCases.toggleFavorite(cityId)
             result.onFailure { e ->
                 _uiState.value = _uiState.value.copy(errorMessage = e.message)
             }
@@ -88,7 +80,7 @@ class CityViewModel(
     }
 
     fun onDeleteCity(cityId: String) {
-        viewModelScope.launch { deleteCity(cityId) }
+        viewModelScope.launch { useCases.deleteCity(cityId) }
     }
 
     fun clearError() {

@@ -7,6 +7,8 @@ interface CityRepository {
     fun getSavedCities(): Flow<List<SavedCity>>
     suspend fun searchCities(query: String): List<SavedCity>
     suspend fun saveCity(city: SavedCity)
-    suspend fun toggleFavorite(cityId: String): Result<Unit>
+    suspend fun getCityById(cityId: String): SavedCity?
+    suspend fun getFavoriteCount(): Int
+    suspend fun setFavorite(cityId: String, isFavorite: Boolean)
     suspend fun deleteCity(cityId: String)
 }

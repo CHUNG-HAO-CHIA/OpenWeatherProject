@@ -1,48 +1,56 @@
 package com.app.openweather.core.network.dto
 
-import com.google.gson.annotations.SerializedName
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
 // data/2.5/weather
+@Serializable
 data class CurrentWeatherDto(
-    @SerializedName("name") val name: String,
-    @SerializedName("main") val main: MainDto,
-    @SerializedName("weather") val weather: List<WeatherDescDto>,
-    @SerializedName("wind") val wind: WindDto,
-    @SerializedName("sys") val sys: SysDto,
+    @SerialName("name") val name: String,
+    @SerialName("main") val main: MainDto,
+    @SerialName("weather") val weather: List<WeatherDescDto>,
+    @SerialName("wind") val wind: WindDto,
+    @SerialName("sys") val sys: SysDto,
 )
 
 // data/2.5/forecast  (every 3 h, up to 40 entries / 5 days)
+@Serializable
 data class ForecastResponseDto(
-    @SerializedName("list") val list: List<ForecastItemDto>,
+    @SerialName("list") val list: List<ForecastItemDto>,
 )
 
+@Serializable
 data class ForecastItemDto(
-    @SerializedName("dt") val dt: Long,
-    @SerializedName("main") val main: MainDto,
-    @SerializedName("weather") val weather: List<WeatherDescDto>,
-    @SerializedName("wind") val wind: WindDto,
-    @SerializedName("pop") val pop: Double = 0.0,
-    @SerializedName("dt_txt") val dtTxt: String,
+    @SerialName("dt") val dt: Long,
+    @SerialName("main") val main: MainDto,
+    @SerialName("weather") val weather: List<WeatherDescDto>,
+    @SerialName("wind") val wind: WindDto,
+    @SerialName("pop") val pop: Double = 0.0,
+    @SerialName("dt_txt") val dtTxt: String,
 )
 
+@Serializable
 data class MainDto(
-    @SerializedName("temp") val temp: Double,
-    @SerializedName("feels_like") val feelsLike: Double,
-    @SerializedName("temp_min") val tempMin: Double,
-    @SerializedName("temp_max") val tempMax: Double,
-    @SerializedName("humidity") val humidity: Int,
+    @SerialName("temp") val temp: Double,
+    @SerialName("feels_like") val feelsLike: Double,
+    @SerialName("temp_min") val tempMin: Double,
+    @SerialName("temp_max") val tempMax: Double,
+    @SerialName("humidity") val humidity: Int,
 )
 
+@Serializable
 data class WindDto(
-    @SerializedName("speed") val speed: Double,
+    @SerialName("speed") val speed: Double,
 )
 
+@Serializable
 data class SysDto(
-    @SerializedName("sunrise") val sunrise: Long,
-    @SerializedName("sunset") val sunset: Long,
+    @SerialName("sunrise") val sunrise: Long,
+    @SerialName("sunset") val sunset: Long,
 )
 
+@Serializable
 data class WeatherDescDto(
-    @SerializedName("description") val description: String,
-    @SerializedName("icon") val icon: String,
+    @SerialName("description") val description: String = "",
+    @SerialName("icon") val icon: String = "",
 )

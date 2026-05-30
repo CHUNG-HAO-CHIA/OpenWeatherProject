@@ -1,21 +1,24 @@
 package com.app.openweather.core.network.dto
 
-import com.google.gson.annotations.SerializedName
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class NominatimDto(
-    @SerializedName("lat") val lat: String,
-    @SerializedName("lon") val lon: String,
-    @SerializedName("display_name") val displayName: String,
-    @SerializedName("address") val address: NominatimAddressDto,
-    @SerializedName("type") val type: String,
+    @SerialName("lat") val lat: String,
+    @SerialName("lon") val lon: String,
+    @SerialName("display_name") val displayName: String,
+    @SerialName("address") val address: NominatimAddressDto,
+    @SerialName("type") val type: String? = null,
 )
 
+@Serializable
 data class NominatimAddressDto(
-    @SerializedName("city") val city: String? = null,
-    @SerializedName("town") val town: String? = null,
-    @SerializedName("village") val village: String? = null,
-    @SerializedName("county") val county: String? = null,
-    @SerializedName("state") val state: String? = null,
-    @SerializedName("country") val country: String? = null,
-    @SerializedName("country_code") val countryCode: String? = null,
+    @SerialName("city") val city: String? = null,
+    @SerialName("town") val town: String? = null,
+    @SerialName("village") val village: String? = null,
+    @SerialName("county") val county: String? = null,
+    @SerialName("state") val state: String? = null,
+    @SerialName("country") val country: String? = null,
+    @SerialName("country_code") val countryCode: String? = null,
 )

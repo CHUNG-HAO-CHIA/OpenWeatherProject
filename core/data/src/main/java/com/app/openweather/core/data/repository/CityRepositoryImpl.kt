@@ -20,30 +20,23 @@ class CityRepositoryImpl(
 
     override suspend fun searchCities(query: String): List<SavedCity> {
         if (query.isBlank()) return emptyList()
-        return nominatim.search(query)
-            .filter { it.address.countryCode != null }   // must at least have a country
-            .distinctBy { "%.4f,%.4f".format(it.lat.toDouble(), it.lon.toDouble()) }
-            .map { it.toDomain() }
+        return nominatim.search(query).map { it.toDomain() }
     }
 
     override suspend fun saveCity(city: SavedCity) {
         dao.insertCity(city.toEntity())
     }
 
-    override suspend fun toggleFavorite(cityId: String): Result<Unit> {
-        val entity = dao.getById(cityId) ?: return Result.failure(Exception("City not found"))
-        return if (entity.isFavorite) {
-            dao.setFavorite(cityId, false)
-            Result.success(Unit)
-        } else {
-            val count = dao.favoriteCount()
-            if (count >= MAX_FAVORITES) {
-                Result.failure(Exception("最多只能加星 $MAX_FAVORITES 個地點"))
-            } else {
-                dao.setFavorite(cityId, true)
-                Result.success(Unit)
-            }
-        }
+    override suspend fun getCityById(cityId: String): SavedCity? {
+        return dao.getById(cityId)?.toDomain()
+    }
+
+    override suspend fun getFavoriteCount(): Int {
+        return dao.favoriteCount()
+    }
+
+    override suspend fun setFavorite(cityId: String, isFavorite: Boolean) {
+        dao.setFavorite(cityId, isFavorite)
     }
 
     override suspend fun deleteCity(cityId: String) = dao.deleteCity(cityId)
