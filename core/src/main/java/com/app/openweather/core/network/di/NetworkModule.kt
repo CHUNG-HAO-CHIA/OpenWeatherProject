@@ -1,0 +1,86 @@
+package com.app.openweather.core.network.di
+
+import com.app.openweather.core.BuildConfig
+import com.app.openweather.core.network.api.NominatimApi
+import com.app.openweather.core.network.api.WeatherApi
+import com.app.openweather.core.network.interceptor.ApiKeyInterceptor
+import com.app.openweather.core.network.interceptor.LanguageInterceptor
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import org.koin.core.qualifier.named
+import org.koin.dsl.module
+import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
+import retrofit2.Retrofit
+import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import java.util.concurrent.TimeUnit
+
+private const val OWM = "owm"
+private const val NOMINATIM = "nominatim"
+
+private val json = Json {
+    ignoreUnknownKeys = true  // tolerate new API fields without breaking
+    coerceInputValues = true  // use default value when JSON null hits a non-null field
+}
+
+val networkModule = module {
+
+    // Base client — timeouts only, no app-specific interceptors
+    single {
+        OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .writeTimeout(10, TimeUnit.SECONDS)
+            .apply {
+                if (BuildConfig.DEBUG) {
+                    addInterceptor(HttpLoggingInterceptor().apply {
+                        level = HttpLoggingInterceptor.Level.BODY
+                    })
+                }
+            }
+            .build()
+    }
+
+    // Language interceptor — injects current locale into API queries
+    single { LanguageInterceptor() }
+
+    // OWM client — injects API key and language automatically
+    single(named(OWM)) {
+        get<OkHttpClient>().newBuilder()
+            .addInterceptor(get<LanguageInterceptor>())
+            .addInterceptor(ApiKeyInterceptor(BuildConfig.API_KEY))
+            .build()
+    }
+
+    // Nominatim client — attaches required User-Agent and language
+    single(named(NOMINATIM)) {
+        get<OkHttpClient>().newBuilder()
+            .addInterceptor(get<LanguageInterceptor>())
+            .addInterceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .header("User-Agent", "OpenWeatherApp/1.0 (${BuildConfig.APPLICATION_ID})")
+                    .build()
+                chain.proceed(request)
+            }
+            .build()
+    }
+
+    single(named(OWM)) {
+        Retrofit.Builder()
+            .baseUrl(BuildConfig.BASE_URL)
+            .client(get(named(OWM)))
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+    }
+
+    single(named(NOMINATIM)) {
+        Retrofit.Builder()
+            .baseUrl("https://nominatim.openstreetmap.org/")
+            .client(get(named(NOMINATIM)))
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+    }
+
+    single<WeatherApi> { get<Retrofit>(named(OWM)).create(WeatherApi::class.java) }
+    single<NominatimApi> { get<Retrofit>(named(NOMINATIM)).create(NominatimApi::class.java) }
+}

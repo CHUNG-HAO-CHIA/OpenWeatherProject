@@ -1,5 +1,5 @@
 <resources>
-    <string name="title_location_management">地點管理</string>
+    <string name="title_location_management">地點清單</string>
     <string name="hint_search_city">搜尋城市名稱…</string>
     <string name="msg_no_city_found">找不到「%s」相關城市</string>
     <string name="label_search_results">搜尋結果</string>

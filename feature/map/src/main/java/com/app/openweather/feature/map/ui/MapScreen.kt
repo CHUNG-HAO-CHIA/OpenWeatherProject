@@ -9,12 +9,14 @@ import android.graphics.RectF
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.util.Log
+import android.util.LruCache
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -25,15 +27,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.ImageLoader
 import coil.compose.AsyncImage
+import coil.imageLoader
 import coil.request.ImageRequest
 import com.app.openweather.core.domain.model.City
 import com.app.openweather.core.ui.AppColors
 import com.app.openweather.feature.map.model.LocationPreviewUiState
 import com.app.openweather.feature.map.model.MapMarkerUiModel
 import com.app.openweather.feature.map.viewmodel.MapViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
 import org.osmdroid.config.Configuration
@@ -55,6 +59,7 @@ fun MapScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     
     // Configure osmdroid user agent
     remember {
@@ -81,6 +86,8 @@ fun MapScreen(
                     MapView(ctx).apply {
                         setTileSource(TileSourceFactory.MAPNIK)
                         setMultiTouchControls(true)
+                        minZoomLevel = 1.0   // 最小縮放：可看見整顆地球
+                        maxZoomLevel = 12.0  // 最大縮放：城市層級，不放大到街道
                         controller.setZoom(8.5)
                         controller.setCenter(GeoPoint(initialLat, initialLon))
                         
@@ -107,26 +114,20 @@ fun MapScreen(
                                 position = GeoPoint(markerData.lat, markerData.lon)
                                 title = markerData.name
                                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                                infoWindow = null // 禁用預設彈窗
-                                
-                                // Step 1: 立即顯示「純文字氣泡」，避免看到綠色大頭針
-                                val initialBitmap = drawMarkerBitmap(context, null, markerData.tempLabel, markerData.isRainy)
-                                icon = BitmapDrawable(context.resources, initialBitmap)
-                                
+                                infoWindow = null
+
                                 setOnMarkerClickListener { _, _ ->
                                     viewModel.onMapClick(markerData.lat, markerData.lon)
                                     true
                                 }
                             }
-                            
-                            // Step 2: 非同步加載圖示並更新
-                            createMarkerIcon(context, markerData) { weatherIcon ->
-                                Log.d("MapScreen", "Icon loaded for ${markerData.name}")
-                                val finalBitmap = drawMarkerBitmap(context, weatherIcon, markerData.tempLabel, markerData.isRainy)
-                                marker.icon = BitmapDrawable(context.resources, finalBitmap)
+
+                            // 全程在 Default dispatcher 上繪製 Bitmap，完成後回 Main 更新 icon
+                            createMarkerIcon(context, scope, markerData) { drawable ->
+                                marker.icon = drawable
                                 mapView.invalidate()
                             }
-                            
+
                             mapView.overlays.add(marker)
                         }
                         mapView.invalidate()
@@ -139,7 +140,10 @@ fun MapScreen(
                 WeatherPreviewBottomSheet(
                     state = uiState.locationPreview,
                     onDismiss = viewModel::dismissPreview,
-                    onViewDetails = onViewDetailsClick
+                    onViewDetails = { city ->
+                        viewModel.saveSelectedCity()
+                        onViewDetailsClick(city)
+                    }
                 )
             }
         }
@@ -147,35 +151,56 @@ fun MapScreen(
 }
 
 /**
- * Creates a custom marker icon containing weather icon and temperature.
- * This is a simplified traditional Android drawing implementation.
+ * Process-level LruCache for marker Bitmaps.
+ * Key: "<cityId>_<tempLabel>_<isRainy>" — avoids recreating identical bitmaps.
+ * Size: 1 MB (typical marker bitmap ~4 KB → holds ~256 markers comfortably).
+ */
+private val markerBitmapCache = LruCache<String, Bitmap>(1 * 1024 * 1024) // 1 MB
+
+/**
+ * Loads the weather icon via Coil (singleton imageLoader) then draws the
+ * marker bitmap entirely on Dispatchers.Default, finally calls [onReady]
+ * back on the Main thread for safe OSMDroid update.
  */
 private fun createMarkerIcon(
     context: Context,
+    scope: CoroutineScope,
     data: MapMarkerUiModel,
-    onReady: (Drawable) -> Unit
+    onReady: (Drawable) -> Unit,
 ) {
-    val imageLoader = ImageLoader(context)
-    val request = ImageRequest.Builder(context)
-        .data(data.iconUrl)
-        .allowHardware(false) // 重要：在繪製到 Canvas 時，禁用硬體加速 Bitmap 以避免一些渲染問題
-        .target(
-            onSuccess = { result ->
-                Log.d("MapScreen", "Coil success: ${data.iconUrl}")
-                onReady(result)
-            },
-            onError = {
-                // 不再打印 result，而是看失敗原因
-                Log.e("MapScreen", "Coil error for ${data.iconUrl}")
+    val cacheKey = "${data.cityId}_${data.tempLabel}_${data.isRainy}"
+
+    scope.launch(Dispatchers.Default) {
+        // Check bitmap cache first (no Coil round-trip needed)
+        val cachedBitmap = markerBitmapCache.get(cacheKey)
+        if (cachedBitmap != null) {
+            val drawable = withContext(Dispatchers.Main) {
+                BitmapDrawable(context.resources, cachedBitmap)
             }
-        )
-        .listener(
-            onError = { _, result ->
-                Log.e("MapScreen", "Coil detailed error: ${result.throwable.message}", result.throwable)
-            }
-        )
-        .build()
-    imageLoader.enqueue(request)
+            onReady(drawable)
+            return@launch
+        }
+
+        // Load weather icon via Coil singleton (no new ImageLoader allocation)
+        val iconDrawable: Drawable? = try {
+            val request = ImageRequest.Builder(context)
+                .data(data.iconUrl)
+                .allowHardware(false)
+                .build()
+            context.imageLoader.execute(request).drawable
+        } catch (e: Exception) {
+            Log.e("MapScreen", "Coil error for ${data.iconUrl}: ${e.message}")
+            null
+        }
+
+        // Draw bitmap off Main thread
+        val bitmap = drawMarkerBitmap(context, iconDrawable, data.tempLabel, data.isRainy)
+        markerBitmapCache.put(cacheKey, bitmap)
+
+        withContext(Dispatchers.Main) {
+            onReady(BitmapDrawable(context.resources, bitmap))
+        }
+    }
 }
 
 private fun drawMarkerBitmap(

@@ -21,10 +21,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
+import coil.compose.AsyncImage
 import com.app.openweather.core.ui.AppColors
 import com.app.openweather.feature.city.R
 import androidx.compose.ui.text.font.FontWeight
@@ -33,8 +38,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.app.openweather.core.domain.model.City
+import com.app.openweather.core.domain.model.CurrentWeather
 import com.app.openweather.core.domain.model.SavedCity
 import com.app.openweather.core.domain.usecase.MAX_FAVORITES
+import com.app.openweather.core.ui.WeatherEffectCanvas
 import com.app.openweather.feature.city.viewmodel.CityViewModel
 import org.koin.androidx.compose.koinViewModel
 
@@ -161,11 +168,11 @@ fun CityListScreen(
                     items(favorites, key = { "fav-${it.id}" }) { city ->
                         SavedCityRow(
                             city = city,
+                            weather = uiState.cityWeather[city.id],
                             onSelect = { onCitySelected(city.toCity()) },
                             onToggleStar = { viewModel.onToggleFavorite(city.id) },
                             onDelete = { viewModel.onDeleteCity(city.id) },
                         )
-                        HorizontalDivider(color = AppColors.BgCard, thickness = 0.5.dp)
                     }
                 }
 
@@ -174,11 +181,11 @@ fun CityListScreen(
                     items(others, key = { "saved-${it.id}" }) { city ->
                         SavedCityRow(
                             city = city,
+                            weather = uiState.cityWeather[city.id],
                             onSelect = { onCitySelected(city.toCity()) },
                             onToggleStar = { viewModel.onToggleFavorite(city.id) },
                             onDelete = { viewModel.onDeleteCity(city.id) },
                         )
-                        HorizontalDivider(color = AppColors.BgCard, thickness = 0.5.dp)
                     }
                 }
 
@@ -254,37 +261,114 @@ private fun SearchResultRow(
 @Composable
 private fun SavedCityRow(
     city: SavedCity,
+    weather: CurrentWeather?,
     onSelect: () -> Unit,
     onToggleStar: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    Row(
+    val iconCode = weather?.iconCode ?: ""
+    val (gradTop, gradBottom) = remember(iconCode) {
+        AppColors.weatherGradient(iconCode.ifEmpty { "01d" })
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (city.isFavorite) AppColors.BgHighlight else AppColors.BgDark)
-            .clickable(onClick = onSelect)
-            .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 16.dp, vertical = 5.dp)
+            .height(104.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Brush.verticalGradient(listOf(gradTop, gradBottom)))
+            .clickable(onClick = onSelect),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(city.name, color = AppColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            Text(
-                listOfNotNull(city.state, city.country).joinToString(", "),
-                color = AppColors.TextSecondary,
-                fontSize = 12.sp,
-            )
+        // Weather particle effect — clipped to card bounds
+        if (iconCode.isNotEmpty()) {
+            WeatherEffectCanvas(iconCode = iconCode)
         }
-        // Star toggle
-        IconButton(onClick = onToggleStar) {
-            Icon(
-                imageVector = if (city.isFavorite) Icons.Filled.Star else Icons.Outlined.StarOutline,
-                contentDescription = stringResource(if (city.isFavorite) R.string.cd_remove_favorite else R.string.cd_add_favorite),
-                tint = if (city.isFavorite) AppColors.StarColor else AppColors.TextSecondary,
-            )
-        }
-        // Delete
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.cd_delete), tint = AppColors.TextSecondary)
+
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Left: city name + subtitle
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    if (city.isFavorite) {
+                        Icon(Icons.Filled.Star, null, tint = AppColors.StarColor, modifier = Modifier.size(13.dp))
+                    }
+                    Text(
+                        text = city.name,
+                        color = Color.White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = listOfNotNull(city.state, city.country).joinToString(", "),
+                    color = Color.White.copy(alpha = 0.70f),
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            // Right: weather info + action buttons
+            Column(
+                modifier = Modifier.fillMaxHeight(),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
+                // Weather icon + temperature
+                if (weather != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        AsyncImage(
+                            model = "https://openweathermap.org/img/wn/${weather.iconCode}@2x.png",
+                            contentDescription = null,
+                            modifier = Modifier.size(38.dp),
+                        )
+                        Text(
+                            text = "${weather.temperature.toInt()}°",
+                            color = Color.White,
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.Light,
+                        )
+                    }
+                    Text(
+                        text = weather.description.replaceFirstChar { it.uppercase() },
+                        color = Color.White.copy(alpha = 0.75f),
+                        fontSize = 11.sp,
+                    )
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
+
+                // Star + delete actions
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(onClick = onToggleStar, modifier = Modifier.size(42.dp)) {
+                        Icon(
+                            imageVector = if (city.isFavorite) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                            contentDescription = stringResource(if (city.isFavorite) R.string.cd_remove_favorite else R.string.cd_add_favorite),
+                            tint = if (city.isFavorite) AppColors.StarColor else Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                    IconButton(onClick = onDelete, modifier = Modifier.size(42.dp)) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = stringResource(R.string.cd_delete),
+                            tint = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                }
+            }
         }
     }
 }

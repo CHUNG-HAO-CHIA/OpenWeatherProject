@@ -28,6 +28,9 @@ data class CurrentWeatherUiModel(
     val windSpeed: String,
     val description: String,
     val iconUrl: String,
+    val iconCode: String,
+    val sunrise: String,
+    val sunset: String,
 )
 
 data class HourlyForecastUiModel(
@@ -36,7 +39,9 @@ data class HourlyForecastUiModel(
     val iconUrl: String,
     val timeLabel: String,
     val dateLabel: String,
+    val popLabel: String,
     val isNewDay: Boolean,
+    val isFirst: Boolean,
 )
 
 data class DailyForecastUiModel(
@@ -52,6 +57,7 @@ data class WeatherUiState(
     val currentWeather: CurrentWeatherUiModel? = null,
     val hourlyForecast: List<HourlyForecastUiModel> = emptyList(),
     val weeklyForecast: List<DailyForecastUiModel> = emptyList(),
+    val pop: String = "—",
     val error: String? = null,
 )
 
@@ -68,7 +74,7 @@ class WeatherViewModel(
     private val dayFmt  = SimpleDateFormat("M/d E", Locale.getDefault())
     private val dailyDayFmt = SimpleDateFormat("EEEE", Locale.getDefault())
 
-    fun loadWeather(lat: Double, lon: Double, overrideCityName: String? = null) {
+    fun loadWeather(lat: Double, lon: Double) {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             combine(
@@ -82,7 +88,7 @@ class WeatherViewModel(
 
                     next = when (weatherResult) {
                         is Result.Loading -> next.copy(isLoading = true, error = null)
-                        is Result.Success -> next.copy(isLoading = false, currentWeather = mapCurrentWeather(weatherResult.data, overrideCityName))
+                        is Result.Success -> next.copy(isLoading = false, currentWeather = mapCurrentWeather(weatherResult.data,))
                         is Result.Error -> next.copy(isLoading = false, error = weatherResult.exception.message)
                     }
 
@@ -90,6 +96,7 @@ class WeatherViewModel(
                         is Result.Success -> next.copy(
                             hourlyForecast = mapHourlyForecast(forecastResult.data.hourly),
                             weeklyForecast = mapDailyForecast(forecastResult.data.daily),
+                            pop = "${((forecastResult.data.hourly.firstOrNull()?.pop ?: 0.0) * 100).roundToInt()}%",
                         )
                         is Result.Error -> next.copy(error = forecastResult.exception.message)
                         is Result.Loading -> next
@@ -101,26 +108,18 @@ class WeatherViewModel(
         }
     }
 
-    private fun resolveLocalizedName(domain: CurrentWeather): String {
-        val locale = Locale.getDefault()
-        val lang = locale.language
-        val country = locale.country
-        val names = domain.localizedNames
-        return names["name:$lang-$country"]
-            ?: names["name:$lang"]
-            ?: names["name"]
-            ?: domain.cityName
-    }
-
-    private fun mapCurrentWeather(domain: CurrentWeather, overrideCityName: String? = null): CurrentWeatherUiModel {
+    private fun mapCurrentWeather(domain: CurrentWeather): CurrentWeatherUiModel {
         return CurrentWeatherUiModel(
-            cityName = overrideCityName ?: resolveLocalizedName(domain),
+            cityName = domain.cityName,
             temperature = "${domain.temperature.roundToInt()}°C",
             feelsLike = "${domain.feelsLike.roundToInt()}°",
             humidity = "${domain.humidity}%",
             windSpeed = "${(domain.windSpeed * 3.6).roundToInt()} km/h",
             description = domain.description.replaceFirstChar { it.uppercase() },
-            iconUrl = "https://openweathermap.org/img/wn/${domain.iconCode}@2x.png"
+            iconUrl = "https://openweathermap.org/img/wn/${domain.iconCode}@2x.png",
+            iconCode = domain.iconCode,
+            sunrise = timeFmt.format(Date(domain.sunrise * 1000)),
+            sunset = timeFmt.format(Date(domain.sunset * 1000)),
         )
     }
 
@@ -138,10 +137,12 @@ class WeatherViewModel(
             HourlyForecastUiModel(
                 tempValue = item.temp,
                 tempLabel = "${item.temp.roundToInt()}°",
-                iconUrl = "https://openweathermap.org/img/wn/${item.iconCode}.png",
+                iconUrl = "https://openweathermap.org/img/wn/${item.iconCode}@2x.png",
                 timeLabel = timeFmt.format(date),
                 dateLabel = dayFmt.format(date),
-                isNewDay = isNewDay
+                popLabel = "${(item.pop * 100).roundToInt()}%",
+                isNewDay = isNewDay,
+                isFirst = index == 0,
             )
         }
     }
@@ -150,7 +151,7 @@ class WeatherViewModel(
         return domainList.map { item ->
             DailyForecastUiModel(
                 dayLabel = dailyDayFmt.format(Date(item.date * 1000)),
-                iconUrl = "https://openweathermap.org/img/wn/${item.iconCode}.png",
+                iconUrl = "https://openweathermap.org/img/wn/${item.iconCode}@2x.png",
                 popLabel = "${(item.pop * 100).roundToInt()}%",
                 tempMinLabel = "${item.tempMin.roundToInt()}°",
                 tempMaxLabel = "${item.tempMax.roundToInt()}°"

@@ -2,8 +2,10 @@ package com.app.openweather.feature.city.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.app.openweather.core.domain.model.CurrentWeather
 import com.app.openweather.core.domain.model.SavedCity
 import com.app.openweather.core.domain.usecase.CityUseCases
+import com.app.openweather.core.domain.usecase.GetWeatherForCitiesUseCase
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -11,12 +13,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class CityUiState(
     val favoriteCities: List<SavedCity> = emptyList(),
     val otherCities: List<SavedCity> = emptyList(),
     val searchResults: List<SavedCity> = emptyList(),
+    val cityWeather: Map<String, CurrentWeather> = emptyMap(),
     val query: String = "",
     val isSearching: Boolean = false,
     val errorMessage: String? = null,
@@ -27,6 +31,7 @@ data class CityUiState(
 @OptIn(FlowPreview::class)
 class CityViewModel(
     private val useCases: CityUseCases,
+    private val getWeatherForCities: GetWeatherForCitiesUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CityUiState())
@@ -37,10 +42,13 @@ class CityViewModel(
     init {
         viewModelScope.launch {
             useCases.getSavedCities().collect { cities ->
-                _uiState.value = _uiState.value.copy(
-                    favoriteCities = cities.filter { it.isFavorite },
-                    otherCities = cities.filter { !it.isFavorite }
-                )
+                _uiState.update {
+                    it.copy(
+                        favoriteCities = cities.filter { c -> c.isFavorite },
+                        otherCities = cities.filter { c -> !c.isFavorite },
+                    )
+                }
+                refreshWeather(cities)
             }
         }
         viewModelScope.launch {
@@ -52,22 +60,34 @@ class CityViewModel(
         }
     }
 
-    fun onQueryChange(query: String) {
-        _uiState.value = _uiState.value.copy(query = query, errorMessage = null)
-        _queryFlow.value = query
-        if (query.length < 2) {
-            _uiState.value = _uiState.value.copy(searchResults = emptyList(), isSearching = false)
+    private fun refreshWeather(cities: List<SavedCity>) {
+        if (cities.isEmpty()) {
+            _uiState.update { it.copy(cityWeather = emptyMap()) }
+            return
         }
+        viewModelScope.launch {
+            val weatherMap = getWeatherForCities(cities)
+            // Replace entirely — never accumulate stale entries from deleted cities
+            _uiState.update { it.copy(cityWeather = weatherMap) }
+        }
+    }
+
+    fun onQueryChange(query: String) {
+        _uiState.update {
+            if (query.length < 2) it.copy(query = query, errorMessage = null, searchResults = emptyList(), isSearching = false)
+            else it.copy(query = query, errorMessage = null)
+        }
+        _queryFlow.value = query
     }
 
     private fun performSearch(query: String) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isSearching = true)
+            _uiState.update { it.copy(isSearching = true) }
             try {
                 val results = useCases.searchCities(query)
-                _uiState.value = _uiState.value.copy(searchResults = results, isSearching = false)
+                _uiState.update { it.copy(searchResults = results, isSearching = false) }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(isSearching = false, errorMessage = "搜尋失敗，請稍後再試")
+                _uiState.update { it.copy(isSearching = false, errorMessage = "搜尋失敗，請稍後再試") }
             }
         }
     }
@@ -80,16 +100,18 @@ class CityViewModel(
         viewModelScope.launch {
             val result = useCases.toggleFavorite(cityId)
             result.onFailure { e ->
-                _uiState.value = _uiState.value.copy(errorMessage = e.message)
+                _uiState.update { it.copy(errorMessage = e.message) }
             }
         }
     }
 
     fun onDeleteCity(cityId: String) {
+        // Optimistic: immediately evict stale weather entry before DB confirms
+        _uiState.update { it.copy(cityWeather = it.cityWeather - cityId) }
         viewModelScope.launch { useCases.deleteCity(cityId) }
     }
 
     fun clearError() {
-        _uiState.value = _uiState.value.copy(errorMessage = null)
+        _uiState.update { it.copy(errorMessage = null) }
     }
 }

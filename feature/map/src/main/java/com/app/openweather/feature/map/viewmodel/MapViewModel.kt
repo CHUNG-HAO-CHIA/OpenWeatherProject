@@ -85,4 +85,11 @@ class MapViewModel(
     fun dismissPreview() {
         _uiState.update { it.copy(locationPreview = LocationPreviewUiState.Idle) }
     }
+
+    fun saveSelectedCity() {
+        val preview = _uiState.value.locationPreview as? LocationPreviewUiState.Success ?: return
+        viewModelScope.launch {
+            cityUseCases.saveCity(preview.city)
+        }
+    }
 }

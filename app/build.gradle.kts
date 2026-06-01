@@ -41,11 +41,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":core:common"))
-    implementation(project(":core:domain"))
-    implementation(project(":core:data"))
-    implementation(project(":core:network"))
-    implementation(project(":core:ui"))
+    implementation(project(":core"))
     implementation(project(":feature:weather"))
     implementation(project(":feature:city"))
     implementation(project(":feature:map"))

@@ -1,6 +1,7 @@
 package com.app.openweather.feature.weather.ui
 
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +28,14 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.AccessTime
+import androidx.compose.material.icons.outlined.Air
+import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.Thermostat
+import androidx.compose.material.icons.outlined.WaterDrop
+import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.Dp
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,12 +52,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -58,6 +63,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.app.openweather.core.domain.model.SavedCity
 import com.app.openweather.core.ui.AppColors
+import com.app.openweather.core.ui.WeatherEffectCanvas
 import com.app.openweather.feature.weather.R
 import com.app.openweather.feature.weather.viewmodel.CurrentWeatherUiModel
 import com.app.openweather.feature.weather.viewmodel.DailyForecastUiModel
@@ -71,7 +77,6 @@ import org.koin.androidx.compose.koinViewModel
 fun WeatherScreen(
     lat: Double,
     lon: Double,
-    overrideCityName: String? = null,
     favoriteCities: List<SavedCity>,
     onCityListClick: () -> Unit,
     onFavoriteCityClick: (SavedCity) -> Unit,
@@ -81,12 +86,18 @@ fun WeatherScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(lat, lon, overrideCityName) {
-        viewModel.loadWeather(lat, lon, overrideCityName)
+    LaunchedEffect(lat, lon,) {
+        viewModel.loadWeather(lat, lon)
     }
 
+    val iconCode = uiState.currentWeather?.iconCode ?: ""
+    val (targetTop, targetBottom) = remember(iconCode) { AppColors.weatherGradient(iconCode) }
+    val animTop by animateColorAsState(targetTop, animationSpec = tween(1200), label = "bgTop")
+    val animBottom by animateColorAsState(targetBottom, animationSpec = tween(1200), label = "bgBottom")
+    val bgBrush = Brush.verticalGradient(listOf(animTop, animBottom))
+
     Scaffold(
-        containerColor = AppColors.BgDark,
+        containerColor = Color.Transparent,
         topBar = {
             CenterAlignedTopAppBar(
                 title = { },
@@ -99,48 +110,59 @@ fun WeatherScreen(
             )
         }
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .background(AppColors.BgDark),
+                .background(brush = bgBrush),
         ) {
-            // Scrollable weather content — takes all remaining space
-            Box(modifier = Modifier.weight(1f)) {
-                when {
-                    uiState.isLoading && uiState.currentWeather == null -> {
-                        CircularProgressIndicator(
-                            modifier = Modifier.align(Alignment.Center),
-                            color = AppColors.AccentBlue,
-                        )
-                    }
-                    uiState.error != null && uiState.currentWeather == null -> {
-                        Text(
-                            text = uiState.error ?: "Unknown error",
-                            color = AppColors.TextSecondary,
-                            modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                            textAlign = TextAlign.Center,
-                        )
-                    }
-                    else -> {
-                        WeatherContent(
-                            currentWeather = uiState.currentWeather,
-                            hourlyForecast = uiState.hourlyForecast,
-                            weeklyForecast = uiState.weeklyForecast,
-                        )
-                    }
-                }
+            // Weather particle effect layer
+            if (iconCode.isNotEmpty()) {
+                WeatherEffectCanvas(iconCode = iconCode)
             }
 
-            // Fixed bottom bar — never scrolls, sits above nav bar
-            FavoriteCitiesBar(
-                cityName = uiState.currentWeather?.cityName ?: "—",
-                favorites = favoriteCities,
-                onCityClick = onFavoriteCityClick,
-                onSelectClick = onCityListClick,
-                onMapClick = onMapClick,
-            )
-        }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+            ) {
+                // Scrollable weather content — takes all remaining space
+                Box(modifier = Modifier.weight(1f)) {
+                    when {
+                        uiState.isLoading && uiState.currentWeather == null -> {
+                            CircularProgressIndicator(
+                                modifier = Modifier.align(Alignment.Center),
+                                color = AppColors.AccentBlue,
+                            )
+                        }
+                        uiState.error != null && uiState.currentWeather == null -> {
+                            Text(
+                                text = uiState.error ?: "Unknown error",
+                                color = AppColors.TextSecondary,
+                                modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                        else -> {
+                            WeatherContent(
+                                currentWeather = uiState.currentWeather,
+                                hourlyForecast = uiState.hourlyForecast,
+                                weeklyForecast = uiState.weeklyForecast,
+                                pop = uiState.pop,
+                            )
+                        }
+                    }
+                }
+
+                // Fixed bottom bar — never scrolls, sits above nav bar
+                FavoriteCitiesBar(
+                    cityName = uiState.currentWeather?.cityName ?: "—",
+                    favorites = favoriteCities,
+                    onCityClick = onFavoriteCityClick,
+                    onSelectClick = onCityListClick,
+                    onMapClick = onMapClick,
+                )
+            } // end Column
+        } // end outer Box
     }
 }
 
@@ -149,6 +171,7 @@ private fun WeatherContent(
     currentWeather: CurrentWeatherUiModel?,
     hourlyForecast: List<HourlyForecastUiModel>,
     weeklyForecast: List<DailyForecastUiModel>,
+    pop: String,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -156,7 +179,7 @@ private fun WeatherContent(
     ) {
         // Current weather hero
         currentWeather?.let { weather ->
-            item { CurrentWeatherHero(weather) }
+            item { CurrentWeatherHero(weather, pop) }
         }
 
         // Hourly chart
@@ -184,24 +207,23 @@ private fun WeatherContent(
 
 
 @Composable
-private fun CurrentWeatherHero(weather: CurrentWeatherUiModel) {
+private fun CurrentWeatherHero(weather: CurrentWeatherUiModel, pop: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
+        // Temperature + icon row
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Weather icon
             AsyncImage(
                 model = weather.iconUrl,
                 contentDescription = weather.description,
                 modifier = Modifier.size(80.dp),
             )
-            Spacer(Modifier.width(8.dp))
-            // Temperature
+            Spacer(Modifier.width(4.dp))
             Column {
                 Text(
                     text = weather.temperature,
@@ -218,161 +240,237 @@ private fun CurrentWeatherHero(weather: CurrentWeatherUiModel) {
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(16.dp))
 
-        // Stats row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-            StatChip(label = stringResource(R.string.stat_feels_like), value = weather.feelsLike)
-            StatChip(label = stringResource(R.string.stat_humidity), value = weather.humidity)
-            StatChip(label = stringResource(R.string.stat_wind_speed), value = weather.windSpeed)
+        // 2 × 3 info grid
+        val cardBg = Color.White.copy(alpha = 0.12f)
+        val cardBorder = Color.White.copy(alpha = 0.18f)
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                WeatherInfoCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Outlined.Thermostat,
+                    label = stringResource(R.string.stat_feels_like),
+                    value = weather.feelsLike,
+                    bg = cardBg, border = cardBorder,
+                )
+                WeatherInfoCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Outlined.WaterDrop,
+                    label = stringResource(R.string.stat_humidity),
+                    value = weather.humidity,
+                    bg = cardBg, border = cardBorder,
+                )
+                WeatherInfoCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Outlined.Air,
+                    label = stringResource(R.string.stat_wind_speed),
+                    value = weather.windSpeed,
+                    bg = cardBg, border = cardBorder,
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                WeatherInfoCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Outlined.Cloud,
+                    label = stringResource(R.string.stat_pop),
+                    value = pop,
+                    bg = cardBg, border = cardBorder,
+                )
+                WeatherInfoCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Outlined.WbSunny,
+                    label = stringResource(R.string.stat_sunrise),
+                    value = weather.sunrise,
+                    bg = cardBg, border = cardBorder,
+                )
+                WeatherInfoCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Outlined.WbSunny,
+                    label = stringResource(R.string.stat_sunset),
+                    value = weather.sunset,
+                    bg = cardBg, border = cardBorder,
+                )
+            }
         }
+
+        Spacer(Modifier.height(4.dp))
     }
 }
 
 @Composable
-private fun StatChip(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = value, color = AppColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-        Text(text = label, color = AppColors.TextSecondary, fontSize = 12.sp)
+private fun WeatherInfoCard(
+    modifier: Modifier = Modifier,
+    icon: ImageVector,
+    label: String,
+    value: String,
+    bg: Color,
+    border: Color,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = bg,
+        border = androidx.compose.foundation.BorderStroke(0.8.dp, border),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = AppColors.TextSecondary,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text = label,
+                    color = AppColors.TextSecondary,
+                    fontSize = 12.sp,
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = value,
+                color = AppColors.TextPrimary,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }
 
 @Composable
 private fun HourlySection(hourly: List<HourlyForecastUiModel>) {
-    val temps = hourly.map { it.tempValue }
-    val minTemp = temps.minOrNull() ?: 0.0
-    val maxTemp = temps.maxOrNull() ?: 1.0
-    val itemWidthDp = 72.dp
-    val chartHeightDp = 80.dp
     val scrollState = rememberScrollState()
+    val nowLabel = stringResource(R.string.label_now)
 
-    val density = LocalDensity.current
-    val itemWidthPx = with(density) { itemWidthDp.toPx() }
-    val chartHeightPx = with(density) { chartHeightDp.toPx() }
-
-    // Find indices where the calendar date changes → draw a day separator
-    val dayChangeIndices = remember(hourly) {
-        hourly.mapIndexedNotNull { idx, item ->
-            if (idx > 0 && item.isNewDay) idx else null
-        }.toSet()
-    }
-
-    // Section header
-    Row(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White.copy(alpha = 0.12f),
+        border = androidx.compose.foundation.BorderStroke(0.8.dp, Color.White.copy(alpha = 0.18f)),
     ) {
-        Text(text = stringResource(R.string.label_hourly_forecast), color = AppColors.TextSecondary, fontSize = 13.sp)
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(AppColors.BgCard)
-            .horizontalScroll(scrollState),
-    ) {
-        val totalWidth = itemWidthDp * hourly.size
-
-        Spacer(Modifier.height(8.dp))
-
-        // Temperature labels
-        Row(modifier = Modifier.width(totalWidth)) {
-            hourly.forEachIndexed { idx, item ->
-                Box(
-                    modifier = Modifier
-                        .width(itemWidthDp)
-                        .then(if (item.isNewDay && idx > 0) Modifier.background(Color.White.copy(alpha = 0.04f)) else Modifier),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = item.tempLabel,
-                        color = AppColors.TextPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
-            }
-        }
-
-        // Bezier chart canvas — day separators drawn as vertical dashed lines
-        Canvas(modifier = Modifier.width(totalWidth).height(chartHeightDp)) {
-            if (temps.size < 2) return@Canvas
-            val range = (maxTemp - minTemp).coerceAtLeast(1.0)
-            val vPad = chartHeightPx * 0.15f
-
-            fun xOf(i: Int) = i * itemWidthPx + itemWidthPx / 2f
-            fun yOf(t: Double) = (vPad + (1.0 - (t - minTemp) / range) * (chartHeightPx - 2 * vPad)).toFloat()
-
-            // Day separator lines
-            for (idx in dayChangeIndices) {
-                val x = xOf(idx) - itemWidthPx / 2f
-                drawLine(
-                    color = Color.White.copy(alpha = 0.15f),
-                    start = Offset(x, 0f),
-                    end = Offset(x, chartHeightPx),
-                    strokeWidth = 1f,
+        Column {
+            // Header
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(
+                    Icons.Outlined.AccessTime,
+                    contentDescription = null,
+                    tint = AppColors.TextSecondary,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text = stringResource(R.string.label_hourly_forecast),
+                    color = AppColors.TextSecondary,
+                    fontSize = 13.sp,
                 )
             }
 
-            // Temperature curve
-            val path = Path()
-            path.moveTo(xOf(0), yOf(temps[0]))
-            for (i in 1 until temps.size) {
-                val x0 = xOf(i - 1); val y0 = yOf(temps[i - 1])
-                val x1 = xOf(i);     val y1 = yOf(temps[i])
-                val cx = (x0 + x1) / 2f
-                path.cubicTo(cx, y0, cx, y1, x1, y1)
-            }
-            drawPath(path, color = AppColors.ChartLine, style = Stroke(width = 3f, cap = StrokeCap.Round))
-            for (i in temps.indices) {
-                drawCircle(color = AppColors.ChartLine, radius = 4f, center = Offset(xOf(i), yOf(temps[i])))
-            }
-        }
+            HorizontalDivider(color = Color.White.copy(alpha = 0.10f), thickness = 0.5.dp)
 
-        // Weather icons
-        Row(modifier = Modifier.width(totalWidth)) {
-            hourly.forEach { item ->
-                Box(modifier = Modifier.width(itemWidthDp), contentAlignment = Alignment.Center) {
-                    AsyncImage(
-                        model = item.iconUrl,
-                        contentDescription = null,
-                        modifier = Modifier.size(32.dp),
+            // Scrollable hourly columns
+            Row(
+                modifier = Modifier
+                    .horizontalScroll(scrollState)
+                    .padding(horizontal = 4.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
+            ) {
+                hourly.forEachIndexed { index, item ->
+                    HourlyColumn(
+                        item = item,
+                        timeLabel = if (item.isFirst) nowLabel else item.timeLabel,
+                        showDayLabel = item.isNewDay && !item.isFirst,
                     )
-                }
-            }
-        }
-
-        // Time label row
-        Row(modifier = Modifier.width(totalWidth)) {
-            hourly.forEach { item ->
-                Column(
-                    modifier = Modifier.width(itemWidthDp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = item.timeLabel,
-                        color = if (item.isNewDay) AppColors.AccentBlue else AppColors.TextSecondary,
-                        fontSize = 11.sp,
-                        fontWeight = if (item.isNewDay) FontWeight.SemiBold else FontWeight.Normal,
-                    )
-                    if (item.isNewDay) {
-                        Text(
-                            text = item.dateLabel,
-                            color = AppColors.AccentBlue,
-                            fontSize = 10.sp,
+                    // Thin separator between days
+                    if (item.isNewDay && !item.isFirst) {
+                        Box(
+                            modifier = Modifier
+                                .width(0.5.dp)
+                                .height(80.dp)
+                                .background(Color.White.copy(alpha = 0.15f))
                         )
                     }
                 }
             }
         }
+    }
+}
 
-        Spacer(Modifier.height(8.dp))
+@Composable
+private fun HourlyColumn(
+    item: HourlyForecastUiModel,
+    timeLabel: String,
+    showDayLabel: Boolean,
+) {
+    Column(
+        modifier = Modifier.width(64.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        // Date badge for new day
+        if (showDayLabel) {
+            Text(
+                text = item.dateLabel,
+                color = AppColors.AccentBlue,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        } else {
+            Spacer(Modifier.height(13.dp))   // same height as date text so rows align
+        }
+
+        // Time label
+        Text(
+            text = timeLabel,
+            color = if (item.isFirst) AppColors.TextPrimary else AppColors.TextSecondary,
+            fontSize = 13.sp,
+            fontWeight = if (item.isFirst) FontWeight.SemiBold else FontWeight.Normal,
+        )
+
+        // Weather icon — white circle backing so night icons stay visible on dark bg
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(Color.White.copy(alpha = 0.12f), shape = RoundedCornerShape(50)),
+            contentAlignment = Alignment.Center,
+        ) {
+            AsyncImage(
+                model = item.iconUrl,
+                contentDescription = null,
+                modifier = Modifier.size(34.dp),
+            )
+        }
+
+        // Temperature
+        Text(
+            text = item.tempLabel,
+            color = AppColors.TextPrimary,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold,
+        )
+
+        // Precipitation probability
+        Text(
+            text = item.popLabel,
+            color = AppColors.AccentBlue,
+            fontSize = 12.sp,
+        )
     }
 }
 
@@ -390,11 +488,18 @@ private fun DailyForecastRow(daily: DailyForecastUiModel) {
             fontSize = 15.sp,
             modifier = Modifier.weight(1.2f),
         )
-        AsyncImage(
-            model = daily.iconUrl,
-            contentDescription = null,
-            modifier = Modifier.size(32.dp),
-        )
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(Color.White.copy(alpha = 0.10f), shape = RoundedCornerShape(50)),
+            contentAlignment = Alignment.Center,
+        ) {
+            AsyncImage(
+                model = daily.iconUrl,
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+            )
+        }
         Spacer(Modifier.width(8.dp))
         Text(
             text = daily.popLabel,
@@ -420,7 +525,7 @@ private fun DailyForecastRow(daily: DailyForecastUiModel) {
             textAlign = TextAlign.End,
         )
     }
-    HorizontalDivider(color = AppColors.BgCard, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
+    HorizontalDivider(color = Color.White.copy(alpha = 0.08f), thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
 }
 
 @Composable
@@ -434,8 +539,8 @@ private fun FavoriteCitiesBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(AppColors.BgCard)
-            .navigationBarsPadding(),     // above virtual nav buttons
+            .background(Color.Black.copy(alpha = 0.30f))
+            .navigationBarsPadding(),
     ) {
         HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
 

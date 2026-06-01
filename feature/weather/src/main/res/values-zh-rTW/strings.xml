@@ -2,7 +2,11 @@
     <string name="stat_feels_like">體感</string>
     <string name="stat_humidity">濕度</string>
     <string name="stat_wind_speed">風速</string>
+    <string name="stat_pop">降雨</string>
+    <string name="stat_sunrise">日出</string>
+    <string name="stat_sunset">日落</string>
     <string name="label_five_day_forecast">5 天預報</string>
-    <string name="label_hourly_forecast">每3小時預報</string>
+    <string name="label_hourly_forecast">逐時預報</string>
+    <string name="label_now">現在</string>
     <string name="action_select_location">選擇地區</string>
 </resources>
