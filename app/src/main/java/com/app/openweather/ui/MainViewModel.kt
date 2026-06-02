@@ -19,7 +19,6 @@ data class NavigationState(
     val lat: Double = DEFAULT_LAT,
     val lon: Double = DEFAULT_LON,
     val locationReady: Boolean = true,
-    val overrideCityName: String? = null,
 )
 
 class MainViewModel(
@@ -38,7 +37,7 @@ class MainViewModel(
     val navState: StateFlow<NavigationState> = _navState.asStateFlow()
 
     fun updateLocation(lat: Double, lon: Double, cityName: String? = null) {
-        _navState.update { it.copy(lat = lat, lon = lon, locationReady = true, overrideCityName = cityName) }
+        _navState.update { it.copy(lat = lat, lon = lon, locationReady = true,) }
     }
 
     fun setLocationReady() {

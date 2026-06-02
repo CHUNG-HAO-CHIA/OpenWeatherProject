@@ -22,6 +22,7 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.androidx.compose.koinViewModel
@@ -78,7 +79,7 @@ fun AppNavGraph(viewModel: MainViewModel = koinViewModel()) {
                     coroutineScope.launch {
                         WeatherWidget().updateAll(context)
                     }
-                    viewModel.updateLocation(city.lat, city.lon, city.name) },
+                    viewModel.updateLocation(city.lat, city.lon) },
                 onMapClick = ({ navController.navigate(ROUTE_MAP) })
                     .takeIf { BuildConfig.FEATURE_MAP_ENABLED },
                 onMyLocationClick = ::onMyLocationClick,
