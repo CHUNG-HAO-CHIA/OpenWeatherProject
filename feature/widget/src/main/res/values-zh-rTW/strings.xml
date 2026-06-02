@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">天氣小工具</string>
+    <string name="widget_loading">載入中…</string>
+    <string name="widget_no_city">請先新增城市</string>
+    <string name="widget_tap_to_open">點擊開啟應用程式</string>
+    <string name="widget_waiting_update">等待更新</string>
+</resources>

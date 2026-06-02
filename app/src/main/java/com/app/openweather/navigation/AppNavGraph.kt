@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
@@ -13,6 +14,7 @@ import com.app.openweather.BuildConfig
 import com.app.openweather.feature.city.ui.CityListScreen
 import com.app.openweather.feature.map.ui.MapScreen
 import com.app.openweather.feature.weather.ui.WeatherScreen
+import com.app.openweather.feature.widget.WeatherWidget
 import com.app.openweather.ui.MainViewModel
 import com.app.openweather.ui.settings.SettingsScreen
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -72,7 +74,11 @@ fun AppNavGraph(viewModel: MainViewModel = koinViewModel()) {
                 favoriteCities = favoriteCities,
                 onCityListClick = ({ navController.navigate(ROUTE_CITY_LIST) })
                     .takeIf { BuildConfig.FEATURE_CITY_ENABLED },
-                onFavoriteCityClick = { city -> viewModel.updateLocation(city.lat, city.lon, city.name) },
+                onFavoriteCityClick = { city ->
+                    coroutineScope.launch {
+                        WeatherWidget().updateAll(context)
+                    }
+                    viewModel.updateLocation(city.lat, city.lon, city.name) },
                 onMapClick = ({ navController.navigate(ROUTE_MAP) })
                     .takeIf { BuildConfig.FEATURE_MAP_ENABLED },
                 onMyLocationClick = ::onMyLocationClick,
@@ -84,6 +90,9 @@ fun AppNavGraph(viewModel: MainViewModel = koinViewModel()) {
                 CityListScreen(
                     onCitySelected = { city ->
                         viewModel.updateLocation(city.lat, city.lon)
+                        coroutineScope.launch {
+                            WeatherWidget().updateAll(context)
+                        }
                         navController.popBackStack()
                     },
                     onBackClick = { navController.popBackStack() },

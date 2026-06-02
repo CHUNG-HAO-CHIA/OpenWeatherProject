@@ -17,6 +17,9 @@ interface WeatherDao {
     @Query("SELECT * FROM current_weather WHERE cityKey = :cityKey")
     fun observeCurrentWeather(cityKey: String): Flow<CurrentWeatherEntity?>
 
+    @Query("SELECT * FROM current_weather WHERE cityKey = :cityKey")
+    suspend fun getCurrentWeather(cityKey: String): CurrentWeatherEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertCurrentWeather(entity: CurrentWeatherEntity)
 

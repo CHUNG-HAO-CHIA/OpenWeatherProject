@@ -14,6 +14,9 @@ interface CityDao {
     @Query("SELECT * FROM saved_city ORDER BY isFavorite DESC, savedAt DESC")
     fun observeSavedCities(): Flow<List<SavedCityEntity>>
 
+    @Query("SELECT * FROM saved_city ORDER BY isFavorite DESC, savedAt DESC")
+    suspend fun getAllCities(): List<SavedCityEntity>
+
     @Query("SELECT COUNT(*) FROM saved_city WHERE isFavorite = 1")
     suspend fun favoriteCount(): Int
 

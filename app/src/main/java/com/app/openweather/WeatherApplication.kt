@@ -8,10 +8,14 @@ import com.app.openweather.di.appModule
 import com.app.openweather.feature.city.di.cityModule
 import com.app.openweather.feature.map.di.mapModule
 import com.app.openweather.feature.weather.di.weatherModule
+import androidx.work.Configuration
+import androidx.work.WorkManager
+import com.app.openweather.feature.widget.WeatherWidgetReceiver
+import com.app.openweather.feature.widget.WidgetWorkerFactory
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 
-class WeatherApplication : Application() {
+class WeatherApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
@@ -27,5 +31,14 @@ class WeatherApplication : Application() {
                 mapModule,
             )
         }
+        WorkManager.initialize(this, workManagerConfiguration)
+        WeatherWidgetReceiver.scheduleHourlyUpdate(this)
     }
+
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
+            .setWorkerFactory(workerFactory)
+            .build()
+
+    private val workerFactory by lazy { WidgetWorkerFactory() }
 }

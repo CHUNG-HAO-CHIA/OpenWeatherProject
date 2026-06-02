@@ -25,6 +25,8 @@ import com.app.openweather.core.common.coordKey
 import com.app.openweather.core.network.api.NominatimApi
 import com.app.openweather.core.network.dto.NominatimDto
 
+private const val CACHE_TTL_MS = 60 * 60 * 1000L // 1 hour
+
 class WeatherRepositoryImpl(
     private val api: WeatherApi,
     private val dao: WeatherDao,
@@ -35,34 +37,42 @@ class WeatherRepositoryImpl(
         val cityKey = cityKey(lat, lon)
 
         // Initial state: try to get from DB first
-        val initialCached = dao.observeCurrentWeather(cityKey).map { it?.toDomain() }.firstOrNull()
+        val initialCachedEntity = dao.observeCurrentWeather(cityKey).firstOrNull()
+        val initialCached = initialCachedEntity?.toDomain()
         if (initialCached != null) {
             emit(Result.Success(initialCached))
         } else {
             emit(Result.Loading)
         }
 
-        // Try to refresh from API
-        try {
-            val weatherDomain = api.getCurrentWeather(lat, lon).toDomain()
-            val nominatimDto = try {
-                nominatimApi.reverse(lat, lon)
-            } catch (_: Exception) {
-                null
-            }
-            
-            val domain = weatherDomain.copy(
-                cityName = nominatimDto?.resolveCityName() ?: weatherDomain.cityName,
-                localizedNames = nominatimDto?.namedetails ?: emptyMap()
-            )
-            dao.upsertCurrentWeather(domain.toEntity(cityKey))
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            if (initialCached == null) {
-                emit(Result.Error(e.toAppError()))
-            } else {
-                val cachedAt = dao.getWeatherUpdatedAt(cityKey) ?: System.currentTimeMillis()
-                emit(Result.Offline(initialCached, cachedAt))
+        val now = System.currentTimeMillis()
+        val isFresh = initialCachedEntity != null && (now - initialCachedEntity.updatedAt < CACHE_TTL_MS)
+
+        if (!isFresh) {
+            // Try to refresh from API
+            try {
+                val weatherDomain = api.getCurrentWeather(lat, lon).toDomain()
+                val nominatimDto = if (initialCached == null || initialCached.cityName.isBlank()) {
+                    try {
+                        nominatimApi.reverse(lat, lon)
+                    } catch (_: Exception) {
+                        null
+                    }
+                } else null
+                
+                val domain = weatherDomain.copy(
+                    cityName = nominatimDto?.resolveCityName() ?: initialCached?.cityName ?: weatherDomain.cityName,
+                    localizedNames = nominatimDto?.namedetails ?: initialCached?.localizedNames ?: emptyMap()
+                )
+                dao.upsertCurrentWeather(domain.toEntity(cityKey))
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                if (initialCached == null) {
+                    emit(Result.Error(e.toAppError()))
+                } else {
+                    val cachedAt = dao.getWeatherUpdatedAt(cityKey) ?: System.currentTimeMillis()
+                    emit(Result.Offline(initialCached, cachedAt))
+                }
             }
         }
 
@@ -89,27 +99,33 @@ class WeatherRepositoryImpl(
             emit(Result.Loading)
         }
 
-        try {
-            val response = api.getForecast(lat, lon)
-            val timezoneOffsetSec = response.city.timezone
-            val rawItems = response.list.map { it.toRawDomain() }
-            val forecast = calculateForecast(rawItems, timezoneOffsetSec)
+        val now = System.currentTimeMillis()
+        val updatedAt = cachedHourly?.firstOrNull()?.updatedAt ?: 0L
+        val isFresh = cachedHourly?.isNotEmpty() == true && cachedDaily?.isNotEmpty() == true && (now - updatedAt < CACHE_TTL_MS)
 
-            dao.deleteHourlyForecast(cityKey)
-            dao.upsertHourlyForecasts(forecast.hourly.map { it.toEntity(cityKey) })
+        if (!isFresh) {
+            try {
+                val response = api.getForecast(lat, lon)
+                val timezoneOffsetSec = response.city.timezone
+                val rawItems = response.list.map { it.toRawDomain() }
+                val forecast = calculateForecast(rawItems, timezoneOffsetSec)
 
-            dao.deleteDailyForecast(cityKey)
-            dao.upsertDailyForecasts(forecast.daily.map { it.toEntity(cityKey) })
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            if (cachedHourly.isNullOrEmpty() || cachedDaily.isNullOrEmpty()) {
-                emit(Result.Error(e.toAppError()))
-            } else {
-                val cachedAt = cachedHourly.firstOrNull()?.updatedAt ?: System.currentTimeMillis()
-                emit(Result.Offline(Forecast(
-                    hourly = cachedHourly.map { it.toDomain() },
-                    daily = cachedDaily.map { it.toDomain() },
-                ), cachedAt))
+                dao.deleteHourlyForecast(cityKey)
+                dao.upsertHourlyForecasts(forecast.hourly.map { it.toEntity(cityKey) })
+
+                dao.deleteDailyForecast(cityKey)
+                dao.upsertDailyForecasts(forecast.daily.map { it.toEntity(cityKey) })
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                if (cachedHourly.isNullOrEmpty() || cachedDaily.isNullOrEmpty()) {
+                    emit(Result.Error(e.toAppError()))
+                } else {
+                    val cachedAt = cachedHourly.firstOrNull()?.updatedAt ?: System.currentTimeMillis()
+                    emit(Result.Offline(Forecast(
+                        hourly = cachedHourly.map { it.toDomain() },
+                        daily = cachedDaily.map { it.toDomain() },
+                    ), cachedAt))
+                }
             }
         }
 

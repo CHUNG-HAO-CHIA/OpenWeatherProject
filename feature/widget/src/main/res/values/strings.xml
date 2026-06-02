@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">Weather Widget</string>
+    <string name="widget_loading">Loading…</string>
+    <string name="widget_no_city">Add a city first</string>
+    <string name="widget_tap_to_open">Tap to open app</string>
+    <string name="widget_waiting_update">Waiting for update</string>
+</resources>

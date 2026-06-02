@@ -55,6 +55,7 @@ dependencies {
     implementation(project(":feature:weather"))
     implementation(project(":feature:city"))
     implementation(project(":feature:map"))
+    implementation(project(":feature:widget"))
 
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
@@ -71,6 +72,8 @@ dependencies {
     implementation(libs.koin.android)
     implementation(libs.koin.androidx.compose)
     implementation(libs.play.services.location)
+    implementation(libs.work.runtime.ktx)
+    implementation(libs.glance.appwidget)
     implementation(libs.accompanist.permissions)
     implementation(libs.kotlinx.coroutines.play.services)
 

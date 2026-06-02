@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">天気ウィジェット</string>
+    <string name="widget_loading">読み込み中…</string>
+    <string name="widget_no_city">先に都市を追加してください</string>
+    <string name="widget_tap_to_open">タップしてアプリを開く</string>
+    <string name="widget_waiting_update">更新待ち</string>
+</resources>

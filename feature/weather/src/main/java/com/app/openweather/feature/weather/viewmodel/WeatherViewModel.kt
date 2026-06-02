@@ -91,7 +91,6 @@ class WeatherViewModel(
         SimpleDateFormat("EEEE", Locale.getDefault()).apply { timeZone = tz }
 
     fun loadWeather(lat: Double, lon: Double) {
-        Log.d("WeatherNav", "loadWeather called: $lat, $lon")
         loadJob?.cancel()
         // Start fresh for new location, but keep data if refreshing
         _uiState.update { it.copy(error = null) }
@@ -103,7 +102,6 @@ class WeatherViewModel(
             ) { weatherResult, forecastResult ->
                 Pair(weatherResult, forecastResult)
             }.collect { (weatherResult, forecastResult) ->
-                Log.d("WeatherNav", "Weather results collected: ${weatherResult::class.simpleName}, ${forecastResult::class.simpleName}")
                 _uiState.update { state ->
                     var next = state
 
