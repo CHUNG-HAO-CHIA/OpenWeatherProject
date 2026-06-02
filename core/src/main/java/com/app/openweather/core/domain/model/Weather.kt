@@ -38,6 +38,7 @@ data class DailyForecast(
 data class Forecast(
     val hourly: List<HourlyForecast>,
     val daily: List<DailyForecast>,
+    val timezoneOffsetSec: Int = 0,
 )
 
 data class RawForecastItem(

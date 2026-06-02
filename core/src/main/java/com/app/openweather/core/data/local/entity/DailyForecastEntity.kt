@@ -15,4 +15,5 @@ data class DailyForecastEntity(
     val humidity: Int,
     val windSpeed: Double,
     val pop: Double = 0.0,
+    val updatedAt: Long = System.currentTimeMillis(),
 )

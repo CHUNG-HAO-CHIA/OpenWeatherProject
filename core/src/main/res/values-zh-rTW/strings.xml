@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="error_network">網路連線失敗，請檢查網路後再試。</string>
+    <string name="error_api">伺服器錯誤（%1$d），請稍後再試。</string>
+    <string name="error_location">無法取得位置，請在設定中開啟位置服務。</string>
+    <string name="error_unknown">發生未知錯誤，請稍後再試。</string>
+    <string name="error_search_failed">搜尋失敗，請稍後再試。</string>
+</resources>

@@ -1,8 +1,20 @@
 package com.app.openweather.feature.city.ui
 
+import android.location.LocationManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -17,31 +29,50 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextOverflow
-import coil.compose.AsyncImage
-import com.app.openweather.core.ui.AppColors
-import com.app.openweather.feature.city.R
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.app.openweather.core.common.toUserMessage
 import com.app.openweather.core.domain.model.City
 import com.app.openweather.core.domain.model.CurrentWeather
 import com.app.openweather.core.domain.model.SavedCity
 import com.app.openweather.core.domain.usecase.MAX_FAVORITES
+import com.app.openweather.core.ui.AppColors
 import com.app.openweather.core.ui.WeatherEffectCanvas
+import com.app.openweather.core.ui.WeatherIcon
+import com.app.openweather.feature.city.R
 import com.app.openweather.feature.city.viewmodel.CityViewModel
 import org.koin.androidx.compose.koinViewModel
 
@@ -57,10 +88,21 @@ fun CityListScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
-    LaunchedEffect(uiState.errorMessage) {
-        uiState.errorMessage?.let {
-            snackbarHostState.showSnackbar(it)
+    // 畫面級單次鎖定：第一個點擊生效後永久忽略後續點擊
+    // remember 綁定此畫面實例，pop 後自動銷毀，下次進入自動重設
+    var isProcessing by remember { mutableStateOf(false) }
+    fun selectCity(city: City) {
+        if (isProcessing) return
+        isProcessing = true
+        keyboardController?.hide()
+        onCitySelected(city)
+    }
+
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let {
+            snackbarHostState.showSnackbar(it.toUserMessage(context))
             viewModel.clearError()
         }
     }
@@ -80,38 +122,46 @@ fun CityListScreen(
                         }
                     }
                 )
-                // Search bar
-                OutlinedTextField(
-                    value = uiState.query,
-                    onValueChange = viewModel::onQueryChange,
+                // Search bar + my location button
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
-                        .padding(bottom = 8.dp)
-                        .focusRequester(focusRequester),
-                    placeholder = { Text(stringResource(R.string.hint_search_city), color = AppColors.TextSecondary, fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.Search, null, tint = AppColors.TextSecondary) },
-                    trailingIcon = {
-                        if (uiState.query.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.onQueryChange("") }) {
-                                Icon(Icons.Default.Clear, null, tint = AppColors.TextSecondary)
+                        .padding(bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+
+                    OutlinedTextField(
+                        value = uiState.query,
+                        onValueChange = viewModel::onQueryChange,
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(focusRequester),
+                        placeholder = { Text(stringResource(R.string.hint_search_city), color = AppColors.TextSecondary, fontSize = 14.sp) },
+                        leadingIcon = { Icon(Icons.Default.Search, null, tint = AppColors.TextSecondary) },
+                        trailingIcon = {
+                            if (uiState.query.isNotEmpty()) {
+                                IconButton(onClick = { viewModel.onQueryChange("") }) {
+                                    Icon(Icons.Default.Clear, null, tint = AppColors.TextSecondary)
+                                }
                             }
-                        }
-                    },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AppColors.AccentBlue,
-                        unfocusedBorderColor = AppColors.BgCard,
-                        focusedTextColor = AppColors.TextPrimary,
-                        unfocusedTextColor = AppColors.TextPrimary,
-                        cursorColor = AppColors.AccentBlue,
-                        focusedContainerColor = AppColors.BgCard,
-                        unfocusedContainerColor = AppColors.BgCard,
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                )
+                        },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AppColors.AccentBlue,
+                            unfocusedBorderColor = AppColors.BgCard,
+                            focusedTextColor = AppColors.TextPrimary,
+                            unfocusedTextColor = AppColors.TextPrimary,
+                            cursorColor = AppColors.AccentBlue,
+                            focusedContainerColor = AppColors.BgCard,
+                            unfocusedContainerColor = AppColors.BgCard,
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                    )
+                }
                 HorizontalDivider(color = AppColors.BgCard)
             }
         }
@@ -150,8 +200,7 @@ fun CityListScreen(
                                 onAdd = { viewModel.onSaveCity(city) },
                                 onSelect = {
                                     viewModel.onSaveCity(city)
-                                    keyboardController?.hide()
-                                    onCitySelected(city.toCity())
+                                    selectCity(city.toCity())
                                 },
                             )
                             HorizontalDivider(color = AppColors.BgCard, thickness = 0.5.dp)
@@ -169,7 +218,7 @@ fun CityListScreen(
                         SavedCityRow(
                             city = city,
                             weather = uiState.cityWeather[city.id],
-                            onSelect = { onCitySelected(city.toCity()) },
+                            onSelect = { selectCity(city.toCity()) },
                             onToggleStar = { viewModel.onToggleFavorite(city.id) },
                             onDelete = { viewModel.onDeleteCity(city.id) },
                         )
@@ -182,7 +231,7 @@ fun CityListScreen(
                         SavedCityRow(
                             city = city,
                             weather = uiState.cityWeather[city.id],
-                            onSelect = { onCitySelected(city.toCity()) },
+                            onSelect = { selectCity(city.toCity()) },
                             onToggleStar = { viewModel.onToggleFavorite(city.id) },
                             onDelete = { viewModel.onDeleteCity(city.id) },
                         )
@@ -328,8 +377,8 @@ private fun SavedCityRow(
                 // Weather icon + temperature
                 if (weather != null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        AsyncImage(
-                            model = "https://openweathermap.org/img/wn/${weather.iconCode}@2x.png",
+                        WeatherIcon(
+                            iconCode = weather.iconCode,
                             contentDescription = null,
                             modifier = Modifier.size(38.dp),
                         )
@@ -374,3 +423,15 @@ private fun SavedCityRow(
 }
 
 private fun SavedCity.toCity() = City(name = name, country = country, lat = lat, lon = lon)
+
+@Suppress("MissingPermission")
+private fun resolveCurrentLocation(
+    context: android.content.Context,
+    onCitySelected: (City) -> Unit,
+) {
+    val lm = context.getSystemService(android.content.Context.LOCATION_SERVICE) as? LocationManager ?: return
+    val location = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+        .firstNotNullOfOrNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }
+        ?: return
+    onCitySelected(City(name = "", country = "", lat = location.latitude, lon = location.longitude))
+}

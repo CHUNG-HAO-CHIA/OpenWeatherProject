@@ -414,6 +414,18 @@ private fun DriftingCloudsEffect(modifier: Modifier, count: Int, alpha: Float, t
     val clouds = remember(count) {
         CLOUD_POOL.take(count)
     }
+
+    // Pre-calculate paths for the templates once
+    val cloudPaths = remember {
+        CLOUD_TEMPLATES.map { puffs ->
+            Path().apply {
+                puffs.forEach { p ->
+                    addOval(Rect(center = Offset(p.dx, p.dy), radius = p.r))
+                }
+            }
+        }
+    }
+
     val transition = rememberInfiniteTransition(label = "clouds")
     val progress by transition.animateFloat(
         initialValue = 0f,

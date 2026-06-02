@@ -4,10 +4,12 @@ import android.annotation.SuppressLint
 import android.content.Context
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.app.openweather.BuildConfig
 import com.app.openweather.feature.city.ui.CityListScreen
 import com.app.openweather.feature.map.ui.MapScreen
 import com.app.openweather.feature.weather.ui.WeatherScreen
@@ -19,6 +21,7 @@ import com.google.accompanist.permissions.rememberPermissionState
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.androidx.compose.koinViewModel
 
 private const val ROUTE_WEATHER = "weather"
@@ -36,23 +39,30 @@ fun AppNavGraph(viewModel: MainViewModel = koinViewModel()) {
     val navState by viewModel.navState.collectAsStateWithLifecycle()
     val favoriteCities by viewModel.favoriteCities.collectAsStateWithLifecycle()
 
+    // 若已有位置權限，靜默更新到實際座標；否則維持預設台北
     val locationPermission = rememberPermissionState(
         android.Manifest.permission.ACCESS_COARSE_LOCATION
-    ) { granted ->
-        if (!granted) viewModel.setLocationReady()
-    }
+    )
+
+    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(locationPermission.status.isGranted) {
         if (locationPermission.status.isGranted) {
             val loc = getLastLocation(context)
             if (loc != null) viewModel.updateLocation(loc.first, loc.second)
-            else viewModel.setLocationReady()
-        } else if (!navState.locationReady) {
-            locationPermission.launchPermissionRequest()
         }
     }
 
-    if (!navState.locationReady) return
+    fun onMyLocationClick() {
+        if (locationPermission.status.isGranted) {
+            coroutineScope.launch {
+                val loc = getLastLocation(context)
+                if (loc != null) viewModel.updateLocation(loc.first, loc.second)
+            }
+        } else {
+            locationPermission.launchPermissionRequest()
+        }
+    }
 
     NavHost(navController = navController, startDestination = ROUTE_WEATHER) {
         composable(ROUTE_WEATHER) {
@@ -60,33 +70,40 @@ fun AppNavGraph(viewModel: MainViewModel = koinViewModel()) {
                 lat = navState.lat,
                 lon = navState.lon,
                 favoriteCities = favoriteCities,
-                onCityListClick = { navController.navigate(ROUTE_CITY_LIST) },
+                onCityListClick = ({ navController.navigate(ROUTE_CITY_LIST) })
+                    .takeIf { BuildConfig.FEATURE_CITY_ENABLED },
                 onFavoriteCityClick = { city -> viewModel.updateLocation(city.lat, city.lon, city.name) },
-                onMapClick = { navController.navigate(ROUTE_MAP) },
+                onMapClick = ({ navController.navigate(ROUTE_MAP) })
+                    .takeIf { BuildConfig.FEATURE_MAP_ENABLED },
+                onMyLocationClick = ::onMyLocationClick,
                 onSettingsClick = { navController.navigate(ROUTE_SETTINGS) },
             )
         }
-        composable(ROUTE_CITY_LIST) {
-            CityListScreen(
-                onCitySelected = { city ->
-                    viewModel.updateLocation(city.lat, city.lon)
-                    navController.popBackStack()
-                },
-                onBackClick = { navController.popBackStack() },
-            )
+        if (BuildConfig.FEATURE_CITY_ENABLED) {
+            composable(ROUTE_CITY_LIST) {
+                CityListScreen(
+                    onCitySelected = { city ->
+                        viewModel.updateLocation(city.lat, city.lon)
+                        navController.popBackStack()
+                    },
+                    onBackClick = { navController.popBackStack() },
+                )
+            }
         }
-        composable(ROUTE_MAP) {
-            MapScreen(
-                initialLat = navState.lat,
-                initialLon = navState.lon,
-                onBackClick = { navController.popBackStack() },
-                onViewDetailsClick = { city ->
-                    viewModel.updateLocation(city.lat, city.lon)
-                    navController.navigate(ROUTE_WEATHER) {
-                        popUpTo(ROUTE_WEATHER) { inclusive = true }
+        if (BuildConfig.FEATURE_MAP_ENABLED) {
+            composable(ROUTE_MAP) {
+                MapScreen(
+                    initialLat = navState.lat,
+                    initialLon = navState.lon,
+                    onBackClick = { navController.popBackStack() },
+                    onViewDetailsClick = { city ->
+                        viewModel.updateLocation(city.lat, city.lon)
+                        navController.navigate(ROUTE_WEATHER) {
+                            popUpTo(ROUTE_WEATHER) { inclusive = true }
+                        }
                     }
-                }
-            )
+                )
+            }
         }
         composable(ROUTE_SETTINGS) {
             SettingsScreen(
@@ -100,14 +117,14 @@ fun AppNavGraph(viewModel: MainViewModel = koinViewModel()) {
 private suspend fun getLastLocation(context: Context): Pair<Double, Double>? {
     return try {
         val client = LocationServices.getFusedLocationProviderClient(context)
-        // 嘗試獲取最後已知位置 (快但不一定有)
-        var loc = client.lastLocation.await()
-        
-        // 如果沒有最後已知位置，嘗試獲取當前位置 (較慢但較準確)
-        if (loc == null) {
-            loc = client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null).await()
+        var loc = withTimeoutOrNull(2000L) {
+            client.lastLocation.await()
         }
-        
+        if (loc == null) {
+            loc = withTimeoutOrNull(5000L) {
+                client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null).await()
+            }
+        }
         if (loc != null) Pair(loc.latitude, loc.longitude) else null
     } catch (e: Exception) {
         null

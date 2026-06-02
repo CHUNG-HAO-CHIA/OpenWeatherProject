@@ -1,5 +1,9 @@
 import java.util.Properties
 
+val localProps = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -17,6 +21,11 @@ android {
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("boolean", "FEATURE_MAP_ENABLED",
+            localProps.getProperty("feature.map.enabled", "true"))
+        buildConfigField("boolean", "FEATURE_CITY_ENABLED",
+            localProps.getProperty("feature.city.enabled", "true"))
     }
 
     buildTypes {
@@ -37,6 +46,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

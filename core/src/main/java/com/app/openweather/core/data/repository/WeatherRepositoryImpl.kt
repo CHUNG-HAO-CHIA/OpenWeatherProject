@@ -1,6 +1,7 @@
 package com.app.openweather.core.data.repository
 
 import com.app.openweather.core.common.Result
+import com.app.openweather.core.common.toAppError
 import com.app.openweather.core.data.local.dao.WeatherDao
 import com.app.openweather.core.domain.model.CurrentWeather
 import com.app.openweather.core.domain.model.DailyForecast
@@ -57,9 +58,11 @@ class WeatherRepositoryImpl(
             dao.upsertCurrentWeather(domain.toEntity(cityKey))
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            // Only emit error if we don't have cached data
             if (initialCached == null) {
-                emit(Result.Error(e))
+                emit(Result.Error(e.toAppError()))
+            } else {
+                val cachedAt = dao.getWeatherUpdatedAt(cityKey) ?: System.currentTimeMillis()
+                emit(Result.Offline(initialCached, cachedAt))
             }
         }
 
@@ -87,9 +90,10 @@ class WeatherRepositoryImpl(
         }
 
         try {
-            val allItems = api.getForecast(lat, lon).list
-            val rawItems = allItems.map { it.toRawDomain() }
-            val forecast = calculateForecast(rawItems)
+            val response = api.getForecast(lat, lon)
+            val timezoneOffsetSec = response.city.timezone
+            val rawItems = response.list.map { it.toRawDomain() }
+            val forecast = calculateForecast(rawItems, timezoneOffsetSec)
 
             dao.deleteHourlyForecast(cityKey)
             dao.upsertHourlyForecasts(forecast.hourly.map { it.toEntity(cityKey) })
@@ -99,7 +103,13 @@ class WeatherRepositoryImpl(
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             if (cachedHourly.isNullOrEmpty() || cachedDaily.isNullOrEmpty()) {
-                emit(Result.Error(e))
+                emit(Result.Error(e.toAppError()))
+            } else {
+                val cachedAt = cachedHourly.firstOrNull()?.updatedAt ?: System.currentTimeMillis()
+                emit(Result.Offline(Forecast(
+                    hourly = cachedHourly.map { it.toDomain() },
+                    daily = cachedDaily.map { it.toDomain() },
+                ), cachedAt))
             }
         }
 
@@ -120,35 +130,45 @@ class WeatherRepositoryImpl(
     private fun cityKey(lat: Double, lon: Double) = coordKey(lat, lon)
 
     // visible for testing
-    internal suspend fun calculateForecast(rawItems: List<RawForecastItem>): Forecast =
-        withContext(Dispatchers.Default) {
+    internal suspend fun calculateForecast(
+        rawItems: List<RawForecastItem>,
+        timezoneOffsetSec: Int = 0,
+    ): Forecast = withContext(Dispatchers.Default) {
         val hourly = rawItems.take(24).map { it.toHourly() }
-        
-        val daily = rawItems.groupBy { it.dtTxt.take(10) }.map { (_, dayItems) ->
-            val representative = dayItems.closestToNoon()
-            val tempMin = dayItems.minOf { it.tempMin }
-            val tempMax = dayItems.maxOf { it.tempMax }
-            
+
+        // Group by local date using the city's timezone offset
+        val daily = rawItems.groupBy { item ->
+            val localMs = item.dt * 1000L + timezoneOffsetSec * 1000L
+            localDateKey(localMs)
+        }.mapNotNull { (_, dayItems) ->
+            val representative = dayItems.closestToLocalNoon(timezoneOffsetSec) ?: return@mapNotNull null
             DailyForecast(
                 date = representative.dt,
-                tempMin = tempMin,
-                tempMax = tempMax,
+                tempMin = dayItems.minOf { it.tempMin },
+                tempMax = dayItems.maxOf { it.tempMax },
                 description = representative.description,
                 iconCode = representative.iconCode,
                 humidity = representative.humidity,
                 windSpeed = representative.windSpeed,
-                pop = representative.pop
+                pop = representative.pop,
             )
         }
-        Forecast(hourly, daily)
+        Forecast(hourly, daily, timezoneOffsetSec)
     }
 
-    private fun List<RawForecastItem>.closestToNoon(): RawForecastItem {
+    private fun localDateKey(localMs: Long): String {
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }
+        return sdf.format(java.util.Date(localMs))
+    }
+
+    private fun List<RawForecastItem>.closestToLocalNoon(timezoneOffsetSec: Int): RawForecastItem? {
         val noonSeconds = 12 * 3600
         return minByOrNull { item ->
-            val timeOfDay = (item.dt % 86400).toInt()
-            abs(timeOfDay - noonSeconds)
-        } ?: first()
+            val localTimeOfDay = ((item.dt + timezoneOffsetSec) % 86400).toInt()
+            abs(localTimeOfDay - noonSeconds)
+        }
     }
 
     private fun RawForecastItem.toHourly() = HourlyForecast(

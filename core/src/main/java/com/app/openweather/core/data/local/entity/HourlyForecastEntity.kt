@@ -15,4 +15,5 @@ data class HourlyForecastEntity(
     val pop: Double,
     val description: String,
     val iconCode: String,
+    val updatedAt: Long = System.currentTimeMillis(),
 )

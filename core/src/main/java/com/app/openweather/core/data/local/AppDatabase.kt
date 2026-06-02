@@ -16,7 +16,7 @@ import com.app.openweather.core.data.local.entity.SavedCityEntity
         DailyForecastEntity::class,
         SavedCityEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {

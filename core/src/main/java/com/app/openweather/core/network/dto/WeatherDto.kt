@@ -17,6 +17,12 @@ data class CurrentWeatherDto(
 @Serializable
 data class ForecastResponseDto(
     @SerialName("list") val list: List<ForecastItemDto>,
+    @SerialName("city") val city: ForecastCityDto,
+)
+
+@Serializable
+data class ForecastCityDto(
+    @SerialName("timezone") val timezone: Int,  // UTC offset in seconds, e.g. 32400 for UTC+9
 )
 
 @Serializable

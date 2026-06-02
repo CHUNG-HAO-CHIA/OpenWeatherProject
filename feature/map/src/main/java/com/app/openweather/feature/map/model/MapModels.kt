@@ -8,7 +8,7 @@ data class MapMarkerUiModel(
     val lat: Double,
     val lon: Double,
     val tempLabel: String,
-    val iconUrl: String,
+    val iconCode: String,
     val isRainy: Boolean,
 )
 
@@ -19,7 +19,7 @@ sealed interface LocationPreviewUiState {
         val city: SavedCity,
         val tempLabel: String,
         val description: String,
-        val iconUrl: String,
+        val iconCode: String,
     ) : LocationPreviewUiState
     data class Error(val message: String) : LocationPreviewUiState
 }

@@ -3,7 +3,9 @@ package com.app.openweather.core.data.repository
 import com.app.openweather.core.data.local.dao.WeatherDao
 import com.app.openweather.core.domain.model.RawForecastItem
 import com.app.openweather.core.network.api.WeatherApi
+import com.app.openweather.core.network.api.NominatimApi
 import io.mockk.mockk
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.text.SimpleDateFormat
@@ -14,7 +16,8 @@ class WeatherRepositoryImplTest {
 
     private val mockApi: WeatherApi = mockk()
     private val mockDao: WeatherDao = mockk()
-    private val repository = WeatherRepositoryImpl(mockApi, mockDao)
+    private val mockNominatimApi: NominatimApi = mockk()
+    private val repository = WeatherRepositoryImpl(mockApi, mockDao, mockNominatimApi)
 
     private val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).apply {
         timeZone = TimeZone.getTimeZone("UTC")
@@ -43,7 +46,7 @@ class WeatherRepositoryImplTest {
     }
 
     @Test
-    fun `calculateForecast should return hourly and daily forecast`() {
+    fun `calculateForecast should return hourly and daily forecast`() = runTest {
         // Arrange
         val rawItems = listOf(
             // Day 1
@@ -85,7 +88,7 @@ class WeatherRepositoryImplTest {
     }
 
     @Test
-    fun `calculateForecast should take max 24 items for hourly`() {
+    fun `calculateForecast should take max 24 items for hourly`() = runTest {
         // Arrange
         val rawItems = (1..30).map { i ->
             val day = if (i <= 8) "27" else if (i <= 16) "28" else "29"

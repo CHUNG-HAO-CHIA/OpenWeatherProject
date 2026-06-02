@@ -7,6 +7,7 @@ import com.app.openweather.core.domain.usecase.CityUseCases
 import com.app.openweather.core.domain.usecase.WeatherUseCases
 import com.app.openweather.feature.map.model.MapMarkerUiModel
 import com.app.openweather.feature.map.model.LocationPreviewUiState
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,7 +46,7 @@ class MapViewModel(
                         lat = city.lat,
                         lon = city.lon,
                         tempLabel = "${weather.temperature.roundToInt()}°",
-                        iconUrl = "https://openweathermap.org/img/wn/${weather.iconCode}.png",
+                        iconCode = weather.iconCode,
                         isRainy = weather.description.contains("rain", ignoreCase = true)
                     )
                 }
@@ -54,8 +55,11 @@ class MapViewModel(
         }
     }
 
+    private var mapClickJob: Job? = null
+
     fun onMapClick(lat: Double, lon: Double) {
-        viewModelScope.launch {
+        mapClickJob?.cancel()
+        mapClickJob = viewModelScope.launch {
             _uiState.update { it.copy(locationPreview = LocationPreviewUiState.Loading) }
             try {
                 val city = cityUseCases.reverseGeocode(lat, lon)
@@ -69,7 +73,7 @@ class MapViewModel(
                                 city = city,
                                 tempLabel = "${weather.temperature.roundToInt()}°C",
                                 description = weather.description.replaceFirstChar { it.uppercase() },
-                                iconUrl = "https://openweathermap.org/img/wn/${weather.iconCode}@2x.png"
+                                iconCode = weather.iconCode
                             )
                         )
                     }
@@ -77,6 +81,7 @@ class MapViewModel(
                     _uiState.update { it.copy(locationPreview = LocationPreviewUiState.Error("無法獲取天氣資料")) }
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _uiState.update { it.copy(locationPreview = LocationPreviewUiState.Error("無法獲取位置資訊")) }
             }
         }

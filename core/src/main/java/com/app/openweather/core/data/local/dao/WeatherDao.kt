@@ -20,6 +20,9 @@ interface WeatherDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertCurrentWeather(entity: CurrentWeatherEntity)
 
+    @Query("SELECT updatedAt FROM current_weather WHERE cityKey = :cityKey")
+    suspend fun getWeatherUpdatedAt(cityKey: String): Long?
+
     // --- Hourly forecast ---
 
     @Query("SELECT * FROM hourly_forecast WHERE cityKey = :cityKey ORDER BY dt ASC")

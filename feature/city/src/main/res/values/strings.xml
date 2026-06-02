@@ -12,4 +12,5 @@
     <string name="cd_remove_favorite">Remove from favorites</string>
     <string name="cd_add_favorite">Add to favorites</string>
     <string name="cd_delete">Delete</string>
+    <string name="cd_my_location">My Location</string>
 </resources>

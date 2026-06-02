@@ -1,0 +1,7 @@
+<resources>
+    <string name="title_weather_map">天氣地圖 (OSM)</string>
+    <string name="cd_my_location">我的位置</string>
+    <string name="msg_loading_location_weather">載入位置天氣中...</string>
+    <string name="action_view_details">查看完整預報</string>
+    <string name="action_close">關閉</string>
+</resources>

@@ -9,4 +9,11 @@
     <string name="label_hourly_forecast">逐時預報</string>
     <string name="label_now">現在</string>
     <string name="action_select_location">選擇地區</string>
+    <string name="action_retry">重試</string>
+    <string name="msg_offline_mode">離線模式使用中</string>
+    <string name="msg_last_updated">上次更新：%s</string>
+    <string name="time_just_now">剛剛</string>
+    <string name="time_minutes_ago">%d 分鐘前</string>
+    <string name="time_hours_ago">%d 小時前</string>
+    <string name="cd_settings">設定</string>
 </resources>

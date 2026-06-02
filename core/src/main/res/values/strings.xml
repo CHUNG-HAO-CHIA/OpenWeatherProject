@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="error_network">Network connection failed. Please check your internet and try again.</string>
+    <string name="error_api">Server error (%1$d). Please try again later.</string>
+    <string name="error_location">Location access denied. Please enable location services in settings.</string>
+    <string name="error_unknown">An unexpected error occurred. Please try again.</string>
+    <string name="error_search_failed">Search failed. Please try again.</string>
+</resources>

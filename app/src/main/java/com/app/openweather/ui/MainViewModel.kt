@@ -18,7 +18,7 @@ private const val DEFAULT_LON = 121.5318
 data class NavigationState(
     val lat: Double = DEFAULT_LAT,
     val lon: Double = DEFAULT_LON,
-    val locationReady: Boolean = false,
+    val locationReady: Boolean = true,
     val overrideCityName: String? = null,
 )
 

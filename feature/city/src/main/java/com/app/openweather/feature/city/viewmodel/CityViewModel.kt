@@ -2,6 +2,8 @@ package com.app.openweather.feature.city.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.app.openweather.core.common.AppError
+import com.app.openweather.core.common.toAppError
 import com.app.openweather.core.domain.model.CurrentWeather
 import com.app.openweather.core.domain.model.SavedCity
 import com.app.openweather.core.domain.usecase.CityUseCases
@@ -23,7 +25,7 @@ data class CityUiState(
     val cityWeather: Map<String, CurrentWeather> = emptyMap(),
     val query: String = "",
     val isSearching: Boolean = false,
-    val errorMessage: String? = null,
+    val error: AppError? = null,
 ) {
     val savedCities: List<SavedCity> get() = favoriteCities + otherCities
 }
@@ -74,8 +76,8 @@ class CityViewModel(
 
     fun onQueryChange(query: String) {
         _uiState.update {
-            if (query.length < 2) it.copy(query = query, errorMessage = null, searchResults = emptyList(), isSearching = false)
-            else it.copy(query = query, errorMessage = null)
+            if (query.length < 2) it.copy(query = query, error = null, searchResults = emptyList(), isSearching = false)
+            else it.copy(query = query)
         }
         _queryFlow.value = query
     }
@@ -87,7 +89,7 @@ class CityViewModel(
                 val results = useCases.searchCities(query)
                 _uiState.update { it.copy(searchResults = results, isSearching = false) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isSearching = false, errorMessage = "搜尋失敗，請稍後再試") }
+                _uiState.update { it.copy(isSearching = false, error = AppError.UnknownError) }
             }
         }
     }
@@ -100,7 +102,7 @@ class CityViewModel(
         viewModelScope.launch {
             val result = useCases.toggleFavorite(cityId)
             result.onFailure { e ->
-                _uiState.update { it.copy(errorMessage = e.message) }
+                _uiState.update { it.copy(error = e.toAppError()) }
             }
         }
     }
@@ -112,6 +114,6 @@ class CityViewModel(
     }
 
     fun clearError() {
-        _uiState.update { it.copy(errorMessage = null) }
+        _uiState.update { it.copy(error = null) }
     }
 }

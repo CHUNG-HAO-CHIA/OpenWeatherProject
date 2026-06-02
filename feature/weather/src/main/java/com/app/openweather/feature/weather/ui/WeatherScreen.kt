@@ -1,5 +1,6 @@
 package com.app.openweather.feature.weather.ui
 
+import android.util.Log
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -26,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.AccessTime
@@ -34,8 +37,12 @@ import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Thermostat
 import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.material.icons.outlined.WifiOff
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,6 +50,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
@@ -59,11 +70,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
+import com.app.openweather.core.common.AppError
+import com.app.openweather.core.common.toUserMessage
 import com.app.openweather.core.domain.model.SavedCity
 import com.app.openweather.core.ui.AppColors
+import com.app.openweather.core.ui.AutoSizeText
 import com.app.openweather.core.ui.WeatherEffectCanvas
+import com.app.openweather.core.ui.WeatherIcon
 import com.app.openweather.feature.weather.R
 import com.app.openweather.feature.weather.viewmodel.CurrentWeatherUiModel
 import com.app.openweather.feature.weather.viewmodel.DailyForecastUiModel
@@ -78,13 +93,35 @@ fun WeatherScreen(
     lat: Double,
     lon: Double,
     favoriteCities: List<SavedCity>,
-    onCityListClick: () -> Unit,
+    onCityListClick: (() -> Unit)?,
     onFavoriteCityClick: (SavedCity) -> Unit,
-    onMapClick: () -> Unit,
+    onMapClick: (() -> Unit)?,
+    onMyLocationClick: () -> Unit,
     onSettingsClick: () -> Unit,
     viewModel: WeatherViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    Log.d("WeatherNav", "WeatherScreen composed. isLoading: ${uiState.isLoading}, hasData: ${uiState.currentWeather != null}")
+
+    LaunchedEffect(Unit) {
+        viewModel.event.collect { event ->
+            when (event) {
+                is com.app.openweather.feature.weather.viewmodel.WeatherUiEvent.ShowSnackbar -> {
+                    val result = snackbarHostState.showSnackbar(
+                        message = event.error.toUserMessage(context),
+                        actionLabel = context.getString(R.string.action_retry),
+                        duration = SnackbarDuration.Short // Short is close to 3s
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        viewModel.loadWeather(lat, lon)
+                    }
+                }
+            }
+        }
+    }
 
     LaunchedEffect(lat, lon,) {
         viewModel.loadWeather(lat, lon)
@@ -98,12 +135,17 @@ fun WeatherScreen(
 
     Scaffold(
         containerColor = Color.Transparent,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
                 title = { },
                 actions = {
                     IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = AppColors.TextPrimary)
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = stringResource(R.string.cd_settings),
+                            tint = AppColors.TextPrimary
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
@@ -125,24 +167,80 @@ fun WeatherScreen(
                     .fillMaxSize()
                     .padding(padding),
             ) {
+                // Offline banner — shown above content when using cached data
+                if (uiState.isOffline) {
+                    OfflineBanner(
+                        cachedAt = uiState.lastUpdated,
+                        onRetry = { viewModel.loadWeather(lat, lon) },
+                    )
+                }
+
                 // Scrollable weather content — takes all remaining space
                 Box(modifier = Modifier.weight(1f)) {
                     when {
+                        uiState.error != null && uiState.currentWeather == null -> {
+                            Log.d("WeatherNav", "Showing Full Screen Error: ${uiState.error}")
+                            Column(
+                                modifier = Modifier
+                                    .align(Alignment.Center)
+                                    .padding(horizontal = 40.dp)
+                                    .widthIn(max = 280.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Surface(
+                                    color = Color.White.copy(alpha = 0.12f),
+                                    shape = RoundedCornerShape(24.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.18f))
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(24.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Cloud,
+                                            contentDescription = null,
+                                            tint = AppColors.TextSecondary.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(42.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        val errorMessage = uiState.error?.toUserMessage(LocalContext.current) ?: ""
+                                        Text(
+                                            text = errorMessage,
+                                            color = AppColors.TextPrimary,
+                                            textAlign = TextAlign.Center,
+                                            fontSize = 15.sp,
+                                            lineHeight = 22.sp,
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(24.dp))
+                                if (uiState.isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(28.dp),
+                                        color = AppColors.AccentBlue,
+                                        strokeWidth = 2.dp,
+                                    )
+                                } else {
+                                    Button(
+                                        onClick = { viewModel.loadWeather(lat, lon) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.AccentBlue),
+                                        shape = RoundedCornerShape(12.dp),
+                                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+                                    ) {
+                                        Text(stringResource(R.string.action_retry), fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
                         uiState.isLoading && uiState.currentWeather == null -> {
+                            Log.d("WeatherNav", "Showing Full Screen Loading")
                             CircularProgressIndicator(
                                 modifier = Modifier.align(Alignment.Center),
                                 color = AppColors.AccentBlue,
                             )
                         }
-                        uiState.error != null && uiState.currentWeather == null -> {
-                            Text(
-                                text = uiState.error ?: "Unknown error",
-                                color = AppColors.TextSecondary,
-                                modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                                textAlign = TextAlign.Center,
-                            )
-                        }
                         else -> {
+                            Log.d("WeatherNav", "Invoking WeatherContent. hasData: ${uiState.currentWeather != null}")
                             WeatherContent(
                                 currentWeather = uiState.currentWeather,
                                 hourlyForecast = uiState.hourlyForecast,
@@ -160,6 +258,7 @@ fun WeatherScreen(
                     onCityClick = onFavoriteCityClick,
                     onSelectClick = onCityListClick,
                     onMapClick = onMapClick,
+                    onMyLocationClick = onMyLocationClick,
                 )
             } // end Column
         } // end outer Box
@@ -173,18 +272,25 @@ private fun WeatherContent(
     weeklyForecast: List<DailyForecastUiModel>,
     pop: String,
 ) {
+    Log.d("WeatherNav", "WeatherContent rendering. hasCurrent: ${currentWeather != null}, hourlySize: ${hourlyForecast.size}, weeklySize: ${weeklyForecast.size}")
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
         // Current weather hero
         currentWeather?.let { weather ->
-            item { CurrentWeatherHero(weather, pop) }
+            item { 
+                Log.d("WeatherNav", "Rendering CurrentWeatherHero")
+                CurrentWeatherHero(weather, pop) 
+            }
         }
 
         // Hourly chart
         if (hourlyForecast.isNotEmpty()) {
-            item { HourlySection(hourlyForecast) }
+            item { 
+                Log.d("WeatherNav", "Rendering HourlySection")
+                HourlySection(hourlyForecast) 
+            }
         }
 
         // Daily forecast
@@ -218,24 +324,29 @@ private fun CurrentWeatherHero(weather: CurrentWeatherUiModel, pop: String) {
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AsyncImage(
-                model = weather.iconUrl,
+            WeatherIcon(
+                iconCode = weather.iconCode,
                 contentDescription = weather.description,
                 modifier = Modifier.size(80.dp),
             )
             Spacer(Modifier.width(4.dp))
             Column {
-                Text(
+                AutoSizeText(
                     text = weather.temperature,
                     color = AppColors.TextPrimary,
                     fontSize = 56.sp,
                     fontWeight = FontWeight.Light,
                     lineHeight = 56.sp,
+                    maxLines = 1,
+                    softWrap = false,
                 )
-                Text(
+                AutoSizeText(
                     text = weather.description,
                     color = AppColors.TextSecondary,
                     fontSize = 15.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
             }
         }
@@ -332,18 +443,22 @@ private fun WeatherInfoCard(
                     tint = AppColors.TextSecondary,
                     modifier = Modifier.size(14.dp),
                 )
-                Text(
+                AutoSizeText(
                     text = label,
                     color = AppColors.TextSecondary,
                     fontSize = 12.sp,
+                    maxLines = 1,
+                    softWrap = false,
                 )
             }
             Spacer(Modifier.height(6.dp))
-            Text(
+            AutoSizeText(
                 text = value,
                 color = AppColors.TextPrimary,
-                fontSize = 20.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false,
             )
         }
     }
@@ -365,7 +480,7 @@ private fun HourlySection(hourly: List<HourlyForecastUiModel>) {
         Column {
             // Header
             Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
@@ -388,7 +503,7 @@ private fun HourlySection(hourly: List<HourlyForecastUiModel>) {
             Row(
                 modifier = Modifier
                     .horizontalScroll(scrollState)
-                    .padding(horizontal = 4.dp, vertical = 14.dp),
+                    .padding(horizontal = 4.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
             ) {
                 hourly.forEachIndexed { index, item ->
@@ -421,18 +536,18 @@ private fun HourlyColumn(
     Column(
         modifier = Modifier.width(64.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(5.dp),
+        verticalArrangement = Arrangement.spacedBy(1.dp),
     ) {
-        // Date badge for new day
-        if (showDayLabel) {
-            Text(
-                text = item.dateLabel,
-                color = AppColors.AccentBlue,
-                fontSize = 9.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-        } else {
-            Spacer(Modifier.height(13.dp))   // same height as date text so rows align
+        // Fixed-height slot for date badge — always occupies the same space
+        Box(modifier = Modifier.height(20.dp), contentAlignment = Alignment.Center) {
+            if (showDayLabel) {
+                Text(
+                    text = item.dateLabel,
+                    color = AppColors.AccentBlue,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Normal,
+                )
+            }
         }
 
         // Time label
@@ -450,8 +565,8 @@ private fun HourlyColumn(
                 .background(Color.White.copy(alpha = 0.12f), shape = RoundedCornerShape(50)),
             contentAlignment = Alignment.Center,
         ) {
-            AsyncImage(
-                model = item.iconUrl,
+            WeatherIcon(
+                iconCode = item.iconCode,
                 contentDescription = null,
                 modifier = Modifier.size(34.dp),
             )
@@ -494,20 +609,23 @@ private fun DailyForecastRow(daily: DailyForecastUiModel) {
                 .background(Color.White.copy(alpha = 0.10f), shape = RoundedCornerShape(50)),
             contentAlignment = Alignment.Center,
         ) {
-            AsyncImage(
-                model = daily.iconUrl,
+            WeatherIcon(
+                iconCode = daily.iconCode,
                 contentDescription = null,
                 modifier = Modifier.size(32.dp),
             )
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(4.dp))
         Text(
             text = daily.popLabel,
             color = AppColors.AccentBlue,
             fontSize = 13.sp,
-            modifier = Modifier.width(36.dp),
+            modifier = Modifier.width(48.dp),
+            maxLines = 1,
+            softWrap = false,
+            textAlign = TextAlign.End,
         )
-        Spacer(Modifier.weight(0.5f))
+        Spacer(Modifier.weight(0.2f))
         Text(
             text = daily.tempMinLabel,
             color = AppColors.TextSecondary,
@@ -533,8 +651,9 @@ private fun FavoriteCitiesBar(
     cityName: String,
     favorites: List<SavedCity>,
     onCityClick: (SavedCity) -> Unit,
-    onSelectClick: () -> Unit,
-    onMapClick: () -> Unit,
+    onSelectClick: (() -> Unit)?,
+    onMapClick: (() -> Unit)?,
+    onMyLocationClick: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -558,21 +677,23 @@ private fun FavoriteCitiesBar(
                 modifier = Modifier.size(18.dp),
             )
             Spacer(Modifier.width(8.dp))
-            Text(
+            AutoSizeText(
                 text = cityName,
                 color = AppColors.TextPrimary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
+                maxLines = 1,
+                softWrap = false,
             )
-            
+
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Map Button
+                // My Location Button
                 Surface(
-                    onClick = onMapClick,
+                    onClick = onMyLocationClick,
                     shape = RoundedCornerShape(12.dp),
                     color = AppColors.AccentBlue.copy(alpha = 0.15f),
                 ) {
@@ -581,30 +702,53 @@ private fun FavoriteCitiesBar(
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            Icons.Default.Map,
+                            Icons.Default.MyLocation,
                             null,
                             tint = AppColors.AccentBlue,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                 }
 
-                // List Button
-                Surface(
-                    onClick = onSelectClick,
-                    shape = RoundedCornerShape(12.dp),
-                    color = AppColors.AccentBlue,
-                ) {
-                    Box(
-                        modifier = Modifier.padding(8.dp),
-                        contentAlignment = Alignment.Center,
+                // Map Button — hidden when feature disabled
+                if (onMapClick != null) {
+                    Surface(
+                        onClick = onMapClick,
+                        shape = RoundedCornerShape(12.dp),
+                        color = AppColors.AccentBlue.copy(alpha = 0.15f),
                     ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.List,
-                            null,
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        Box(
+                            modifier = Modifier.padding(8.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                Icons.Default.Map,
+                                null,
+                                tint = AppColors.AccentBlue,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+
+                // List Button — hidden when feature disabled
+                if (onSelectClick != null) {
+                    Surface(
+                        onClick = onSelectClick,
+                        shape = RoundedCornerShape(12.dp),
+                        color = AppColors.AccentBlue,
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(8.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.List,
+                                null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -634,6 +778,54 @@ private fun FavoriteCitiesBar(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun OfflineBanner(cachedAt: Long?, onRetry: () -> Unit) {
+    val justNow = stringResource(R.string.time_just_now)
+    val minutesAgo = stringResource(R.string.time_minutes_ago)
+    val hoursAgo = stringResource(R.string.time_hours_ago)
+
+    val timeAgo = remember(cachedAt, justNow, minutesAgo, hoursAgo) {
+        if (cachedAt == null) return@remember ""
+        val diffMs = System.currentTimeMillis() - cachedAt
+        val diffMin = diffMs / 60_000
+        when {
+            diffMin < 1 -> justNow
+            diffMin < 60 -> minutesAgo.format(diffMin)
+            else -> hoursAgo.format(diffMin / 60)
+        }
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFFB45309).copy(alpha = 0.85f))
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Outlined.WifiOff,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = if (timeAgo.isNotEmpty()) {
+                    stringResource(R.string.msg_offline_mode) + "・" + stringResource(R.string.msg_last_updated, timeAgo)
+                } else {
+                    stringResource(R.string.msg_offline_mode)
+                },
+                color = Color.White,
+                fontSize = 13.sp,
+            )
+        }
+        TextButton(onClick = onRetry, contentPadding = PaddingValues(0.dp)) {
+            Text(stringResource(R.string.action_retry), color = Color.White, fontSize = 13.sp)
         }
     }
 }

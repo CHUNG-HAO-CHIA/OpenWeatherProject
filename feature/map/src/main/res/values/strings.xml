@@ -1,0 +1,7 @@
+<resources>
+    <string name="title_weather_map">Weather Map (OSM)</string>
+    <string name="cd_my_location">My Location</string>
+    <string name="msg_loading_location_weather">Loading weather...</string>
+    <string name="action_view_details">View Details</string>
+    <string name="action_close">Close</string>
+</resources>

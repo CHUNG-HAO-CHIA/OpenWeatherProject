@@ -1,6 +1,8 @@
 package com.app.openweather.feature.map.ui
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -8,12 +10,16 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.location.LocationManager
 import android.util.Log
 import android.util.LruCache
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.rememberCoroutineScope
@@ -22,16 +28,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import com.app.openweather.feature.map.R
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
-import coil.imageLoader
-import coil.request.ImageRequest
 import com.app.openweather.core.domain.model.City
 import com.app.openweather.core.ui.AppColors
+import com.app.openweather.core.ui.WeatherIcon
 import com.app.openweather.feature.map.model.LocationPreviewUiState
 import com.app.openweather.feature.map.model.MapMarkerUiModel
 import com.app.openweather.feature.map.viewmodel.MapViewModel
@@ -60,18 +67,36 @@ fun MapScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    
+    val mapViewRef = remember { mutableStateOf<MapView?>(null) }
+
     // Configure osmdroid user agent
     remember {
         Configuration.getInstance().userAgentValue = context.packageName
         true
     }
 
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) animateToCurrentLocation(context, mapViewRef.value)
+    }
+
+    fun onMyLocationClick() {
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        if (hasPermission) {
+            animateToCurrentLocation(context, mapViewRef.value)
+        } else {
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = AppColors.BgDark),
-                title = { Text("天氣地圖 (OSM)", color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold) },
+                title = { Text(stringResource(R.string.title_weather_map), color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = AppColors.TextPrimary)
@@ -86,10 +111,11 @@ fun MapScreen(
                     MapView(ctx).apply {
                         setTileSource(TileSourceFactory.MAPNIK)
                         setMultiTouchControls(true)
-                        minZoomLevel = 1.0   // 最小縮放：可看見整顆地球
-                        maxZoomLevel = 12.0  // 最大縮放：城市層級，不放大到街道
+                        minZoomLevel = 4.0   // 最小縮放：可看見整顆地球
+                        maxZoomLevel = 14.0  // 最大縮放：城市層級，不放大到街道
                         controller.setZoom(8.5)
                         controller.setCenter(GeoPoint(initialLat, initialLon))
+                        mapViewRef.value = this
                         
                         // Handle Map Clicks
                         val eventsOverlay = MapEventsOverlay(object : MapEventsReceiver {
@@ -136,6 +162,17 @@ fun MapScreen(
                 modifier = Modifier.fillMaxSize()
             )
 
+            FloatingActionButton(
+                onClick = ::onMyLocationClick,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp),
+                containerColor = AppColors.BgCard,
+                contentColor = AppColors.AccentBlue,
+            ) {
+                Icon(Icons.Default.MyLocation, contentDescription = stringResource(R.string.cd_my_location))
+            }
+
             if (uiState.locationPreview !is LocationPreviewUiState.Idle) {
                 WeatherPreviewBottomSheet(
                     state = uiState.locationPreview,
@@ -150,12 +187,35 @@ fun MapScreen(
     }
 }
 
+@Suppress("MissingPermission")
+private fun animateToCurrentLocation(context: Context, mapView: MapView?) {
+    mapView ?: return
+    val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return
+    val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+    val location = providers.firstNotNullOfOrNull { provider ->
+        runCatching { lm.getLastKnownLocation(provider) }.getOrNull()
+    }
+    if (location != null) {
+        mapView.controller.animateTo(GeoPoint(location.latitude, location.longitude))
+        mapView.controller.setZoom(8.5)
+    }
+}
+
 /**
  * Process-level LruCache for marker Bitmaps.
  * Key: "<cityId>_<tempLabel>_<isRainy>" — avoids recreating identical bitmaps.
- * Size: 1 MB (typical marker bitmap ~4 KB → holds ~256 markers comfortably).
+ * Size: 1/32th of max available heap memory, capped between 1MB and 8MB.
  */
-private val markerBitmapCache = LruCache<String, Bitmap>(1 * 1024 * 1024) // 1 MB
+private val markerBitmapCache: LruCache<String, Bitmap> = run {
+    val maxMemory = Runtime.getRuntime().maxMemory()
+    val cacheSize = (maxMemory / 32).toInt().coerceIn(1024 * 1024, 8 * 1024 * 1024)
+    object : LruCache<String, Bitmap>(cacheSize) {
+        override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
+        override fun entryRemoved(evicted: Boolean, key: String, oldValue: Bitmap, newValue: Bitmap?) {
+            if (evicted) oldValue.recycle()
+        }
+    }
+}
 
 /**
  * Loads the weather icon via Coil (singleton imageLoader) then draws the
@@ -181,17 +241,10 @@ private fun createMarkerIcon(
             return@launch
         }
 
-        // Load weather icon via Coil singleton (no new ImageLoader allocation)
-        val iconDrawable: Drawable? = try {
-            val request = ImageRequest.Builder(context)
-                .data(data.iconUrl)
-                .allowHardware(false)
-                .build()
-            context.imageLoader.execute(request).drawable
-        } catch (e: Exception) {
-            Log.e("MapScreen", "Coil error for ${data.iconUrl}: ${e.message}")
-            null
-        }
+        val iconDrawable: Drawable? = androidx.core.content.ContextCompat.getDrawable(
+            context,
+            com.app.openweather.core.ui.iconCodeToDrawable(data.iconCode),
+        )
 
         // Draw bitmap off Main thread
         val bitmap = drawMarkerBitmap(context, iconDrawable, data.tempLabel, data.isRainy)
@@ -296,7 +349,7 @@ private fun WeatherPreviewBottomSheet(
                 is LocationPreviewUiState.Loading -> {
                     CircularProgressIndicator(color = AppColors.AccentBlue)
                     Spacer(Modifier.height(16.dp))
-                    Text("載入位置天氣中...", color = AppColors.TextSecondary)
+                    Text(stringResource(R.string.msg_loading_location_weather), color = AppColors.TextSecondary)
                 }
                 is LocationPreviewUiState.Success -> {
                     Text(
@@ -312,7 +365,7 @@ private fun WeatherPreviewBottomSheet(
                     )
                     Spacer(Modifier.height(16.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        AsyncImage(model = state.iconUrl, contentDescription = null, modifier = Modifier.size(64.dp))
+                        WeatherIcon(iconCode = state.iconCode, contentDescription = null, modifier = Modifier.size(64.dp))
                         Column {
                             Text(text = state.tempLabel, color = AppColors.TextPrimary, fontSize = 32.sp, fontWeight = FontWeight.Light)
                             Text(text = state.description, color = AppColors.TextSecondary, fontSize = 16.sp)
@@ -328,13 +381,13 @@ private fun WeatherPreviewBottomSheet(
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.AccentBlue),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("查看完整預報", color = Color.White)
+                        Text(stringResource(R.string.action_view_details), color = Color.White)
                     }
                 }
                 is LocationPreviewUiState.Error -> {
                     Text(state.message, color = Color.Red)
                     Spacer(Modifier.height(16.dp))
-                    Button(onClick = onDismiss) { Text("關閉") }
+                    Button(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
                 }
                 else -> {}
             }
